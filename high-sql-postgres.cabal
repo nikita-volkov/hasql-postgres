@@ -39,6 +39,7 @@ library
     library
   other-modules:
     HighSQLPostgres.Prelude
+    HighSQLPostgres.Renderers
   exposed-modules:
   build-depends:
     -- database:
