@@ -41,21 +41,29 @@ library
     HighSQLPostgres.Prelude
     HighSQLPostgres.Renderers
     HighSQLPostgres.Parsers
+    HighSQLPostgres.Connection
+    HighSQLPostgres.Transaction
+    HighSQLPostgres.Cursor
+    HighSQLPostgres.LibPQ.Connection
+    HighSQLPostgres.LibPQ.Result
   exposed-modules:
+    HighSQLPostgres
   build-depends:
     -- parsers:
-    attoparsec == 0.11.*,
+    attoparsec == 0.12.*,
     -- database:
+    high-sql == 0.1.*,
     postgresql-libpq == 0.9.*,
     -- data:
     old-locale == 1.0.*,
     time == 1.4.*,
     hashtables == 1.1.*,
     Decimal == 0.4.*,
-    text == 0.11.*,
+    text == 1.1.*,
     bytestring >= 0.10.4.0 && < 0.11,
     hashable == 1.2.*,
     -- control:
+    mmorph == 1.0.*,
     list-t >= 0.2.1 && < 0.3,
     -- errors:
     loch-th == 0.2.*,

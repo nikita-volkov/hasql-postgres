@@ -60,6 +60,9 @@ word32 :: R Word32 =
 word64 :: R Word64 =
   B.word64Dec
 
+word :: R Word =
+  B.wordDec
+
 int8 :: R Int8 =
   B.int8Dec
 
@@ -71,6 +74,9 @@ int32 :: R Int32 =
 
 int64 :: R Int64 =
   B.int64Dec
+
+int :: R Int =
+  B.intDec
 
 integer :: R Integer =
   B.integerDec

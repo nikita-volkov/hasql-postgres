@@ -6,8 +6,8 @@ import Data.Attoparsec.ByteString
 
 type P = Parser
 
-run :: ByteString -> P a -> Either String a
-run = flip parseOnly
+run :: ByteString -> P a -> Either Text a
+run = (left fromString .) . flip parseOnly
 
 
 -- ** Parsers

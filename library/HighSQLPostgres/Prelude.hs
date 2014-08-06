@@ -3,6 +3,7 @@ module HighSQLPostgres.Prelude
   module Exports,
   bug,
   bottom,
+  partial,
 )
 where
 
@@ -11,13 +12,21 @@ where
 -------------------------
 import BasePrelude as Exports
 
+-- mtl-prelude
+-------------------------
+import MTLPrelude as Exports hiding (shift)
+
+-- mmorph
+-------------------------
+import Control.Monad.Morph as Exports
+
 -- list-t
 -------------------------
 import ListT as Exports (ListT)
 
 -- hashable
 -------------------------
-import Data.Hashable as Exports (Hashable)
+import Data.Hashable as Exports (Hashable(..))
 
 -- text
 -------------------------
@@ -53,3 +62,7 @@ bug = [e| $(Debug.Trace.LocationTH.failure) . (msg <>) |]
     msg = "A \"high-sql-postgres\" package bug: " :: String
 
 bottom = [e| $bug "Bottom evaluated" |]
+
+partial :: Alternative f => (a -> Bool) -> a -> f a
+partial p x = 
+  if p x then pure x else empty

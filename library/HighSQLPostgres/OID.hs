@@ -2,6 +2,9 @@ module HighSQLPostgres.OID where
 
 import Database.PostgreSQL.LibPQ (Oid(..))
 
+
+type OID = Oid
+
 abstime     = Oid 702
 bit         = Oid 1560
 bool        = Oid 16
