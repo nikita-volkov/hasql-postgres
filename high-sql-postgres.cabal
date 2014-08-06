@@ -1,0 +1,61 @@
+name:
+  high-sql-postgres
+version:
+  0.1.0
+synopsis:
+  A "PostgreSQL" driver for the "high-sql" library
+description:
+category:
+  Database
+homepage:
+  https://github.com/nikita-volkov/high-sql-postgres 
+bug-reports:
+  https://github.com/nikita-volkov/high-sql-postgres/issues 
+author:
+  Nikita Volkov <nikita.y.volkov@mail.ru>
+maintainer:
+  Nikita Volkov <nikita.y.volkov@mail.ru>
+copyright:
+  (c) 2014, Nikita Volkov
+license:
+  MIT
+license-file:
+  LICENSE
+build-type:
+  Simple
+cabal-version:
+  >=1.10
+
+
+source-repository head
+  type:
+    git
+  location:
+    git://github.com/nikita-volkov/high-sql-postgres.git
+
+
+library
+  hs-source-dirs:
+    library
+  other-modules:
+  exposed-modules:
+  build-depends:
+    -- database:
+    postgresql-libpq == 0.9.*,
+    -- data:
+    time == 1.4.*,
+    hashtables == 1.1.*,
+    hashable == 1.2.*,
+    bytestring == 0.10.*,
+    text == 0.11.*,
+    -- control:
+    list-t >= 0.2.1 && < 0.3,
+    -- general:
+    mtl-prelude == 0.1.*,
+    base-prelude >= 0.1.3 && < 0.2
+  ghc-options:
+    -funbox-strict-fields
+  default-extensions:
+    Arrows, BangPatterns, ConstraintKinds, DataKinds, DefaultSignatures, DeriveDataTypeable, DeriveFunctor, DeriveGeneric, EmptyDataDecls, FlexibleContexts, FlexibleInstances, FunctionalDependencies, GADTs, GeneralizedNewtypeDeriving, ImpredicativeTypes, LambdaCase, LiberalTypeSynonyms, MagicHash, MultiParamTypeClasses, MultiWayIf, NoImplicitPrelude, NoMonomorphismRestriction, OverloadedStrings, PatternGuards, ParallelListComp, QuasiQuotes, RankNTypes, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TemplateHaskell, TupleSections, TypeFamilies, TypeOperators, UnboxedTuples
+  default-language:
+    Haskell2010
