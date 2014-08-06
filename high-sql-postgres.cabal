@@ -40,8 +40,11 @@ library
   other-modules:
     HighSQLPostgres.Prelude
     HighSQLPostgres.Renderers
+    HighSQLPostgres.Parsers
   exposed-modules:
   build-depends:
+    -- parsers:
+    attoparsec == 0.11.*,
     -- database:
     postgresql-libpq == 0.9.*,
     -- data:
