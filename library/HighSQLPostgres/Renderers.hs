@@ -21,6 +21,11 @@ run a f =
 -- ** Renderers
 -------------------------
 
+ascii :: Show a => R a
+ascii =
+  B.string7 . show
+
+
 -- *** strings
 -------------------------
 
@@ -81,19 +86,19 @@ double :: R Double =
   B.doubleDec
 
 decimalRawInt32 :: R (DecimalRaw Int32) =
-  B.string7 . show
+  ascii
 
 decimalRawInt64 :: R (DecimalRaw Int64) =
-  B.string7 . show
+  ascii
 
 decimalRawWord32 :: R (DecimalRaw Word32) =
-  B.string7 . show
+  ascii
 
 decimalRawWord64 :: R (DecimalRaw Word64) =
-  B.string7 . show
+  ascii
 
 decimal :: R Decimal =
-  B.string7 . show
+  ascii
 
 pico :: R Pico =
   B.string7 . showFixed True
