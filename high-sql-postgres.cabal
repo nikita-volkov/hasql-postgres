@@ -59,6 +59,7 @@ library
     time == 1.4.*,
     hashtables == 1.1.*,
     Decimal == 0.4.*,
+    scientific == 0.3.*,
     text == 1.1.*,
     bytestring >= 0.10.4.0 && < 0.11,
     hashable == 1.2.*,

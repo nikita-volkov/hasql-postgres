@@ -7,6 +7,7 @@ import HighSQLPostgres.Prelude
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text.Encoding as T
+import qualified Data.ByteString.Builder.Scientific
 
 
 -- | A renderer of @a@.
@@ -109,6 +110,8 @@ decimal :: R Decimal =
 pico :: R Pico =
   B.string7 . showFixed True
 
+scientific :: R Scientific =
+  Data.ByteString.Builder.Scientific.scientificBuilder
 
 -- *** time
 -------------------------

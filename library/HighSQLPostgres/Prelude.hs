@@ -40,6 +40,10 @@ import Data.ByteString as Exports (ByteString)
 -------------------------
 import Data.Decimal as Exports (Decimal, DecimalRaw)
 
+-- scientific
+-------------------------
+import Data.Scientific as Exports (Scientific)
+
 -- time
 -------------------------
 import Data.Time as Exports
