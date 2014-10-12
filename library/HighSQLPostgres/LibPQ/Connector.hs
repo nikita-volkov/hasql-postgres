@@ -1,10 +1,10 @@
 -- |
 -- Mid-level abstractions over gritty details of \"lib-pq\".
-module HighSQLPostgres.LibPQ.Connection where
+module HighSQLPostgres.LibPQ.Connector where
 
 import HighSQLPostgres.Prelude hiding (Error)
 import qualified Database.PostgreSQL.LibPQ as L
-import qualified HighSQLPostgres.Renderers as Renderers
+import qualified HighSQLPostgres.Renderer as Renderer
 
 
 data Settings =
@@ -35,7 +35,7 @@ data Failure =
 new :: Settings -> ExceptT Failure IO L.Connection
 new s =
   do
-    c <- lift $ L.connectdb (Renderers.run s settingsRenderer)
+    c <- lift $ L.connectdb (Renderer.run s settingsRenderer)
     do
       s <- lift $ L.status c
       when (s /= L.ConnectionOk) $ 
@@ -49,17 +49,17 @@ new s =
     return c
 
 
-settingsRenderer :: Renderers.R Settings
+settingsRenderer :: Renderer.R Settings
 settingsRenderer s =
   mconcat $ intersperse " " args
   where
     args =
       [
-        "host="     <> Renderers.byteString (host s),
-        "port="     <> Renderers.word16 (port s),
-        "user="     <> Renderers.text (user s),
-        "password=" <> Renderers.text (password s),
-        "dbname="   <> Renderers.text (database s)
+        "host="     <> Renderer.byteString (host s),
+        "port="     <> Renderer.word16 (port s),
+        "user="     <> Renderer.text (user s),
+        "password=" <> Renderer.text (password s),
+        "dbname="   <> Renderer.text (database s)
       ]
 
 

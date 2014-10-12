@@ -1,4 +1,4 @@
-module HighSQLPostgres.Parsers where
+module HighSQLPostgres.Parser where
 
 import HighSQLPostgres.Prelude
 import Data.Attoparsec.ByteString
@@ -10,7 +10,7 @@ run :: ByteString -> P a -> Either Text a
 run = (left fromString .) . flip parseOnly
 
 
--- ** Parsers
+-- ** Parser
 -------------------------
 
 charUnit :: Char -> P ()

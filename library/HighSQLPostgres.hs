@@ -6,10 +6,10 @@ import qualified Database.PostgreSQL.LibPQ as L
 import qualified Data.ByteString as ByteString
 import qualified Data.HashTable.IO as Hashtables
 import qualified HighSQLPostgres.OID as OID
-import qualified HighSQLPostgres.Parsers as Parsers
-import qualified HighSQLPostgres.Renderers as Renderers
+import qualified HighSQLPostgres.Parser as Parser
+import qualified HighSQLPostgres.Renderer as Renderer
 import qualified HighSQLPostgres.Connection as Connection
-import qualified HighSQLPostgres.LibPQ.Connection as LibPQConnection
+import qualified HighSQLPostgres.LibPQ.Connector as LibPQ.Connector
 
 
 data Postgres =
@@ -26,50 +26,51 @@ instance Backend Postgres where
     (L.Oid, ByteString, L.Format)
   newtype Result Postgres =
     Result ByteString
-  type Connection Postgres =
-    Connection.Connection
+  newtype Connection Postgres =
+    Connection Connection.Connection
   connect p =
-    withExceptT liftFailure $ Connection.establish settings
+    either (throwIO . ConnectionLost . fromString . show) (return . Connection) =<< do
+      runExceptT $ Connection.establish settings
     where
       settings =
-        LibPQConnection.Settings (host p) (port p) (user p) (password p) (database p)
-      liftFailure =
-        ConnectionFailure . fromString . show
-  disconnect c =
-    lift $ Connection.close c
-  execute b vl =
+        LibPQ.Connector.Settings (host p) (port p) (user p) (password p) (database p)
+  disconnect (Connection c) =
+    Connection.close c
+  execute s c =
+    $notImplemented
+  executeAndStream s c =
     $notImplemented
 
 
--- * Values
+-- * Mappings
 -------------------------
 
 -- |
--- Make a 'renderArgument' function with the 'Text' format.
-{-# INLINE mkRenderArgument #-}
-mkRenderArgument :: L.Oid -> Renderers.R a -> (a -> (L.Oid, ByteString, L.Format))
-mkRenderArgument o r a =
-  (o, Renderers.run a r, L.Text)
+-- Make a 'renderValue' function with the 'Text' format.
+{-# INLINE mkRenderValue #-}
+mkRenderValue :: L.Oid -> Renderer.R a -> (a -> (L.Oid, ByteString, L.Format))
+mkRenderValue o r a =
+  (o, Renderer.run a r, L.Text)
 
 {-# INLINE mkParseResult #-}
-mkParseResult :: Parsers.P a -> (Result Postgres -> Maybe a)
+mkParseResult :: Parser.P a -> (Result Postgres -> Maybe a)
 mkParseResult p (Result b) =
-  either (const Nothing) Just $ Parsers.run b p 
+  either (const Nothing) Just $ Parser.run b p 
 
-instance Value Int Postgres where
-  renderArgument = mkRenderArgument OID.int8 Renderers.int
-  parseResult    = mkParseResult Parsers.integral
+instance Mapping Postgres Int where
+  renderValue = mkRenderValue OID.int8 Renderer.int
+  parseResult = mkParseResult Parser.integral
 
-instance Value Word Postgres where
-  renderArgument = mkRenderArgument OID.int8 Renderers.word
-  parseResult    = mkParseResult Parsers.integral
+instance Mapping Postgres Word where
+  renderValue = mkRenderValue OID.int8 Renderer.word
+  parseResult = mkParseResult Parser.integral
 
-instance Value Int64 Postgres where
-  renderArgument = mkRenderArgument OID.int8 Renderers.int64
-  parseResult    = mkParseResult Parsers.integral
+instance Mapping Postgres Int64 where
+  renderValue = mkRenderValue OID.int8 Renderer.int64
+  parseResult = mkParseResult Parser.integral
 
-instance Value TimeOfDay Postgres where
-  renderArgument = mkRenderArgument OID.time Renderers.timeOfDay
-  parseResult    = mkParseResult Parsers.timeOfDay
+instance Mapping Postgres TimeOfDay where
+  renderValue = mkRenderValue OID.time Renderer.timeOfDay
+  parseResult = mkParseResult Parser.timeOfDay
 
 

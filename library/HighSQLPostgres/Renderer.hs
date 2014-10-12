@@ -1,7 +1,7 @@
 -- |
 -- Useful info:
 -- https://github.com/hdbc/hdbc/blob/7ed3dfad534773cbfe2811ea241d245009e2961b/Database/HDBC/SqlValue.hs#L252
-module HighSQLPostgres.Renderers where
+module HighSQLPostgres.Renderer where
 
 import HighSQLPostgres.Prelude
 import qualified Data.ByteString.Builder as B
@@ -19,7 +19,7 @@ run a f =
   (L.toStrict . B.toLazyByteString . f) a
 
 
--- ** Renderers
+-- ** Renderer
 -------------------------
 
 ascii :: Show a => R a

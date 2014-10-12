@@ -5,10 +5,10 @@ import qualified Database.PostgreSQL.LibPQ as L
 import qualified Data.ByteString as ByteString
 import qualified Data.HashTable.IO as Hashtables
 import qualified HighSQLPostgres.OID as OID
-import qualified HighSQLPostgres.Parsers as Parsers
-import qualified HighSQLPostgres.Renderers as Renderers
+import qualified HighSQLPostgres.Parser as Parser
+import qualified HighSQLPostgres.Renderer as Renderer
 import qualified HighSQLPostgres.LibPQ.Result as Result
-import qualified HighSQLPostgres.LibPQ.Connection as Connection
+import qualified HighSQLPostgres.LibPQ.Connector as Connector
 
 
 -- |
@@ -69,16 +69,16 @@ type M =
   ExceptT Failure IO
 
 
-establish :: Connection.Settings -> ExceptT Connection.Failure IO Connection
+establish :: Connector.Settings -> ExceptT Connector.Failure IO Connection
 establish s =
   Connection <$> 
-    Connection.new s <*> 
+    Connector.new s <*> 
     lift (newIORef 0) <*>
     lift Hashtables.new
 
 close :: Connection -> IO ()
 close c =
-  Connection.close (connection c)
+  Connector.close (connection c)
 
 prepare :: Connection -> Stmt -> [OID] -> M RemStmtKey
 prepare c s tl =
@@ -90,7 +90,7 @@ prepare c s tl =
       Nothing ->
         do
           w <- liftIO $ readIORef (stmtCounter c)
-          n <- return (Renderers.run w Renderers.word16)
+          n <- return (Renderer.run w Renderer.word16)
           r <- parseResult c =<< do liftIO $ L.prepare (connection c) n s (partial (not . null) tl)
           case r of
             Nothing -> return ()
@@ -117,7 +117,7 @@ executeCountingEffects c s tl al =
     r <- parseResult c =<< do liftIO $ L.execPrepared (connection c) n al L.Text
     case r of
       Just (Result.RowsAffectedNum r) ->
-        either (throwError . ParserFailure) return $ Parsers.run r Parsers.integral
+        either (throwError . ParserFailure) return $ Parser.run r Parser.integral
       _ ->
         $bug "Unexpected result"
 

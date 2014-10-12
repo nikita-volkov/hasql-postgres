@@ -3,7 +3,7 @@ module HighSQLPostgres.Cursor where
 import HighSQLPostgres.Prelude hiding (Error)
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import qualified HighSQLPostgres.OID as OID
-import qualified HighSQLPostgres.Renderers as Renderers
+import qualified HighSQLPostgres.Renderer as Renderer
 import qualified HighSQLPostgres.Connection as C
 import qualified HighSQLPostgres.Transaction as T
 import qualified Data.ByteString as ByteString
@@ -53,7 +53,7 @@ declare c t s tl al =
           tl = 
             [OID.int2, OID.varchar]
           al = 
-            [Just (Renderers.run 256 Renderers.word16, LibPQ.Text), 
+            [Just (Renderer.run 256 Renderer.word16, LibPQ.Text), 
              Just (n, LibPQ.Text)]
       stream =
         do

@@ -39,12 +39,12 @@ library
     library
   other-modules:
     HighSQLPostgres.Prelude
-    HighSQLPostgres.Renderers
-    HighSQLPostgres.Parsers
+    HighSQLPostgres.Renderer
+    HighSQLPostgres.Parser
     HighSQLPostgres.Connection
     HighSQLPostgres.Transaction
     HighSQLPostgres.Cursor
-    HighSQLPostgres.LibPQ.Connection
+    HighSQLPostgres.LibPQ.Connector
     HighSQLPostgres.LibPQ.Result
   exposed-modules:
     HighSQLPostgres
