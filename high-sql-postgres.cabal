@@ -46,6 +46,7 @@ library
     HighSQLPostgres.Cursor
     HighSQLPostgres.LibPQ.Connector
     HighSQLPostgres.LibPQ.Result
+    HighSQLPostgres.LibPQ.StatementPreparer
   exposed-modules:
     HighSQLPostgres
   build-depends:

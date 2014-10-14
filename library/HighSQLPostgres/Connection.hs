@@ -9,6 +9,7 @@ import qualified HighSQLPostgres.Parser as Parser
 import qualified HighSQLPostgres.Renderer as Renderer
 import qualified HighSQLPostgres.LibPQ.Result as Result
 import qualified HighSQLPostgres.LibPQ.Connector as Connector
+import qualified HighSQLPostgres.LibPQ.StatementPreparer as StatementPreparer
 
 
 -- |
