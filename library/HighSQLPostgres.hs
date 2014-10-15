@@ -8,8 +8,10 @@ import qualified Data.HashTable.IO as Hashtables
 import qualified HighSQLPostgres.OID as OID
 import qualified HighSQLPostgres.Parser as Parser
 import qualified HighSQLPostgres.Renderer as Renderer
-import qualified HighSQLPostgres.Connection as Connection
-import qualified HighSQLPostgres.LibPQ.Connector as LibPQ.Connector
+import qualified HighSQLPostgres.Session as Session
+import qualified HighSQLPostgres.Statement as Statement
+import qualified HighSQLPostgres.LibPQ.Connector as Connector
+import qualified ListT
 
 
 data Postgres =
@@ -22,24 +24,68 @@ data Postgres =
   }
 
 instance Backend Postgres where
-  type StatementArgument Postgres =
-    (L.Oid, ByteString, L.Format)
-  newtype Result Postgres =
-    Result ByteString
-  newtype Connection Postgres =
-    Connection Connection.Connection
+  type StatementArgument Postgres = 
+    (L.Oid, Maybe (ByteString, L.Format))
+  newtype Result Postgres = 
+    Result (Maybe ByteString)
+  newtype Connection Postgres = 
+    Connection Session.Context
   connect p =
-    either (throwIO . ConnectionLost . fromString . show) (return . Connection) =<< do
-      runExceptT $ Connection.establish settings
+    do
+      r <- runExceptT $ Connector.open settings
+      case r of
+        Left e -> 
+          throwIO $ CantConnect $ fromString $ show e
+        Right c ->
+          Connection <$> Session.newContext c
     where
       settings =
-        LibPQ.Connector.Settings (host p) (port p) (user p) (password p) (database p)
-  disconnect (Connection c) =
-    Connection.close c
-  execute s c =
-    $notImplemented
-  executeAndStream s c =
-    $notImplemented
+        Connector.Settings (host p) (port p) (user p) (password p) (database p)
+  disconnect (Connection (c, _, _)) =
+    L.finish c
+  execute s (Connection c) =
+    runSession c $
+      Session.unitResult =<< Session.execute (mkSessionStatement s)
+  executeAndStream s (Connection c) =
+    runSession c $
+      return . (hoistSessionStream c) =<< Session.streamResult =<< Session.execute (mkSessionStatement s)
+  executeAndStreamWithCursor s (Connection c) =
+    runSession c $
+      return . (hoistSessionStream c) =<< Session.streamWithCursor (mkSessionStatement s)
+  executeAndCountEffects s (Connection c) =
+    do
+      r <- runSession c $ Session.rowsAffectedResult =<< Session.execute (mkSessionStatement s)
+      either 
+        (throwIO . ResultParsingError (Just (r, typeOf (undefined :: Integer))) . Just) 
+        return 
+        (Parser.run r Parser.integral)
+  inTransaction (isolation, write) io (Connection c) =
+    runSession c $ Session.inTransaction (sessionIsolation, write) $ liftIO io
+    where
+      sessionIsolation =
+        case isolation of
+          Serializable    -> Statement.Serializable
+          RepeatableReads -> Statement.RepeatableRead
+          ReadCommitted   -> Statement.ReadCommitted
+          ReadUncommitted -> Statement.ReadCommitted
+
+runSession :: Session.Context -> Session.Session r -> IO r
+runSession c s =
+  Session.run c s >>= either onError return
+  where
+    onError =
+      \case
+        Session.NotInTransaction -> $bug "Unexpected NotInTransaction error"
+        Session.UnexpectedResult -> throwIO $ ResultParsingError Nothing Nothing
+        Session.ResultError e    -> $bug $ "Unexpected result error: " <> show e
+
+hoistSessionStream :: Session.Context -> Session.Stream -> ResultsStream Postgres
+hoistSessionStream c =
+  fmap (ListT.traverse (return . Result) . hoist (runSession c))
+
+mkSessionStatement :: Statement Postgres -> Statement.Statement
+mkSessionStatement (template, values) =
+  (template, values, True)
 
 
 -- * Mappings
@@ -48,14 +94,16 @@ instance Backend Postgres where
 -- |
 -- Make a 'renderValue' function with the 'Text' format.
 {-# INLINE mkRenderValue #-}
-mkRenderValue :: L.Oid -> Renderer.R a -> (a -> (L.Oid, ByteString, L.Format))
+mkRenderValue :: L.Oid -> Renderer.R a -> (a -> (L.Oid, Maybe (ByteString, L.Format)))
 mkRenderValue o r a =
-  (o, Renderer.run a r, L.Text)
+  (o, Just (Renderer.run a r, L.Text))
 
 {-# INLINE mkParseResult #-}
 mkParseResult :: Parser.P a -> (Result Postgres -> Maybe a)
-mkParseResult p (Result b) =
-  either (const Nothing) Just $ Parser.run b p 
+mkParseResult p (Result r) =
+  do
+    r' <- r
+    either (const Nothing) Just $ Parser.run r' p
 
 instance Mapping Postgres Int where
   renderValue = mkRenderValue OID.int8 Renderer.int
@@ -72,5 +120,4 @@ instance Mapping Postgres Int64 where
 instance Mapping Postgres TimeOfDay where
   renderValue = mkRenderValue OID.time Renderer.timeOfDay
   parseResult = mkParseResult Parser.timeOfDay
-
 

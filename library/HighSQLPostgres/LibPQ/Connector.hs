@@ -24,7 +24,7 @@ settings =
   Settings "127.0.0.1" 5432 "postgres" "" ""
 
 
-data Failure =
+data Error =
   BadStatus (Maybe ByteString) |
   UnsupportedVersion Int
   deriving (Show, Typeable)
@@ -32,8 +32,8 @@ data Failure =
 
 -- |
 -- Establish and initialize a connection.
-new :: Settings -> ExceptT Failure IO L.Connection
-new s =
+open :: Settings -> ExceptT Error IO L.Connection
+open s =
   do
     c <- lift $ L.connectdb (Renderer.run s settingsRenderer)
     do
@@ -61,10 +61,3 @@ settingsRenderer s =
         "password=" <> Renderer.text (password s),
         "dbname="   <> Renderer.text (database s)
       ]
-
-
-close :: L.Connection -> IO ()
-close c =
-  L.finish c
-
-
