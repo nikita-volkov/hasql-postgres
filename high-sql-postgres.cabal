@@ -42,13 +42,12 @@ library
     HighSQLPostgres.Renderer
     HighSQLPostgres.Parser
     HighSQLPostgres.Connection
-    HighSQLPostgres.Transaction
-    HighSQLPostgres.Cursor
+    HighSQLPostgres.Session
     HighSQLPostgres.LibPQ.Connector
     HighSQLPostgres.LibPQ.Result
     HighSQLPostgres.LibPQ.StatementPreparer
   exposed-modules:
-    HighSQLPostgres
+    -- HighSQLPostgres
   build-depends:
     -- parsers:
     attoparsec == 0.12.*,

@@ -36,7 +36,7 @@ new :: LibPQ.Connection -> IO StatementPreparer
 new connection =
   (,,) <$> pure connection <*> newIORef 0 <*> Hashtables.new
 
-prepare :: ByteString -> [LibPQ.Oid] -> StatementPreparer -> ExceptT LibPQ.Result.Failure IO RemoteKey
+prepare :: ByteString -> [LibPQ.Oid] -> StatementPreparer -> ExceptT LibPQ.Result.Error IO RemoteKey
 prepare s tl (c, counter, table) =
   do
     let k = LocalKey s tl
@@ -57,5 +57,3 @@ prepare s tl (c, counter, table) =
           liftIO $ Hashtables.insert table k n
           liftIO $ writeIORef counter (succ w)
           return n
-    
-

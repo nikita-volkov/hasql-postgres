@@ -1,22 +1,22 @@
 module HighSQLPostgres.LibPQ.Result where
 
-import HighSQLPostgres.Prelude
+import HighSQLPostgres.Prelude hiding (Error)
 import qualified Database.PostgreSQL.LibPQ as L
 import qualified ListT
 
 
 -- |
 -- Either a failure with no result but some description or a comprehensive one.
-data Failure =
+data Error =
   NoResult 
     (Maybe ByteString) |
   -- | Status, state, message, detail, hint.
-  ResultFailure 
-    ResultFailureStatus (Maybe ByteString) (Maybe ByteString) (Maybe ByteString) (Maybe ByteString)
+  ResultError 
+    ResultErrorStatus (Maybe ByteString) (Maybe ByteString) (Maybe ByteString) (Maybe ByteString)
   deriving (Show, Typeable)
   
 
-data ResultFailureStatus =
+data ResultErrorStatus =
   BadResponse | NonfatalError | FatalError
   deriving (Show, Typeable, Eq, Ord, Enum, Bounded)
 
@@ -26,7 +26,7 @@ data Success =
   Stream !Stream
 
 
-parse :: L.Connection -> Maybe L.Result -> IO (Either Failure (Maybe Success))
+parse :: L.Connection -> Maybe L.Result -> IO (Either Error (Maybe Success))
 parse c =
   \case
     Nothing ->
@@ -39,16 +39,16 @@ parse c =
           L.TuplesOk ->
             Right . Just . Stream <$> stream r
           L.BadResponse ->
-            Left <$> statusFailure BadResponse
+            Left <$> statusError BadResponse
           L.NonfatalError ->
-            Left <$> statusFailure NonfatalError
+            Left <$> statusError NonfatalError
           L.FatalError ->
-            Left <$> statusFailure FatalError
+            Left <$> statusError FatalError
           r ->
             $bug $ "Unsupported result status: " <> show r
       where
-        statusFailure s =
-          ResultFailure s <$> state <*> message <*> detail <*> hint
+        statusError s =
+          ResultError s <$> state <*> message <*> detail <*> hint
           where
             state   = L.resultErrorField r L.DiagSqlstate
             message = L.resultErrorField r L.DiagMessagePrimary

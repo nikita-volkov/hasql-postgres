@@ -30,8 +30,14 @@ ascii =
 -- *** strings
 -------------------------
 
+char7 :: R Char = 
+  B.char7
+
 char :: R Char = 
   B.charUtf8
+
+string7 :: R String = 
+  B.string7
 
 string :: R String = 
   B.string8

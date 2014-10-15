@@ -3,7 +3,6 @@ module HighSQLPostgres.Connection where
 import HighSQLPostgres.Prelude hiding (Error)
 import qualified Database.PostgreSQL.LibPQ as L
 import qualified Data.ByteString as ByteString
-import qualified Data.HashTable.IO as Hashtables
 import qualified HighSQLPostgres.OID as OID
 import qualified HighSQLPostgres.Parser as Parser
 import qualified HighSQLPostgres.Renderer as Renderer
@@ -12,126 +11,159 @@ import qualified HighSQLPostgres.LibPQ.Connector as Connector
 import qualified HighSQLPostgres.LibPQ.StatementPreparer as StatementPreparer
 
 
--- |
--- A raw statement.
-type Stmt =
-  ByteString
 
+type Connection =
+  (L.Connection, StatementPreparer.StatementPreparer, IORef (Maybe Transaction))
 
-type OID =
-  L.Oid
-
-
--- |
--- Maybe a rendered value with its serialization format.
--- 'Nothing' implies @NULL@.
-type StmtArg = 
-  Maybe (ByteString, L.Format)
-
+type Transaction =
+  (Word)
 
 -- |
 -- A width of a row and a stream of serialized values.
 type ResultsStream =
   (Int, ListT IO ByteString)
 
-
-data Connection =
-  Connection {
-    connection :: !L.Connection,
-    stmtCounter :: !(IORef Word16), 
-    stmtTable :: !(Hashtables.BasicHashTable LocStmtKey RemStmtKey)
-  }
-
+type Stmt =
+  (ByteString, [(ValueType, Value)])
 
 -- |
--- Local statement key.
-data LocStmtKey =
-  LocStmtKey !ByteString ![L.Oid]
-  deriving (Show, Eq)
+-- Maybe a rendered value with its serialization format.
+-- 'Nothing' implies @NULL@.
+type Value = 
+  Maybe (ByteString, L.Format)
 
--- |
--- Optimized by ignoring the OIDs.
-instance Hashable LocStmtKey where
-  hashWithSalt s (LocStmtKey b _) = hashWithSalt s b
+type ValueType =
+  L.Oid
 
-
--- |
--- Remote statement key.
-type RemStmtKey =
+type Cursor =
   ByteString
 
 
-data Failure =
-  ResultFailure Result.Failure |
-  ParserFailure Text
+-- * Transaction types
+-------------------------
+
+data Isolation =
+  ReadCommitted |
+  RepeatableRead |
+  Serializable 
+
+type Mode =
+  (Isolation, Bool)
+
+
+-- * Errors
+-------------------------
+
+data Error =
+  NotInTransaction |
+  UnexpectedResult |
+  ResultError Result.Error
   deriving (Show, Typeable)
 
-type M =
-  ExceptT Failure IO
+instance Exception Error
 
 
-establish :: Connector.Settings -> ExceptT Connector.Failure IO Connection
-establish s =
-  Connection <$> 
-    Connector.new s <*> 
-    lift (newIORef 0) <*>
-    lift Hashtables.new
+-- * Session
+-------------------------
 
-close :: Connection -> IO ()
-close c =
-  Connector.close (connection c)
+type Session =
+  ReaderT Connection (ExceptT Error IO)
 
-prepare :: Connection -> Stmt -> [OID] -> M RemStmtKey
-prepare c s tl =
+-- |
+-- Execute the session, throwing the exceptions.
+runSession :: Connection -> Session r -> IO r
+runSession c s =
+  join $ fmap (either throwIO return) $ runExceptT $ runReaderT s c
+
+parseResult :: Maybe L.Result -> Session (Maybe Result.Success)
+parseResult r =
+  ReaderT $ \(c, _, _) -> lift (Result.parse c r) >>= either (throwError . ResultError) return
+
+executePrepared :: Stmt -> Session (Maybe Result.Success)
+executePrepared s =
   do
-    r <- liftIO $ Hashtables.lookup (stmtTable c) k
-    case r of
-      Just r -> 
-        return r
-      Nothing ->
-        do
-          w <- liftIO $ readIORef (stmtCounter c)
-          n <- return (Renderer.run w Renderer.word16)
-          r <- parseResult c =<< do liftIO $ L.prepare (connection c) n s (partial (not . null) tl)
-          case r of
-            Nothing -> return ()
-            _ -> $bug "Unexpected result"
-          liftIO $ Hashtables.insert (stmtTable c) k n
-          liftIO $ writeIORef (stmtCounter c) (succ w)
-          return n
+    (connection, preparer, _) <- ask
+    let (bs, pl) = s
+        (tl, vl) = unzip pl
+    key <- lift $ withExceptT ResultError $ StatementPreparer.prepare bs tl preparer
+    result <- liftIO $ L.execPrepared connection key vl L.Text
+    parseResult result
+
+execute :: Stmt -> Session (Maybe Result.Success)
+execute s =
+  do
+    (connection, _, _) <- ask
+    let (template, pl) = s
+        parameters = map (\(t, v) -> (\(vb, vf) -> (t, vb, vf)) <$> v) pl
+    result <- liftIO $ L.execParams connection template parameters L.Text
+    parseResult result
+
+-- |
+-- Requires to be in transaction.
+nextName :: Session ByteString
+nextName =
+  do
+    (_, _, transactionStateRef) <- ask
+    transactionState <- liftIO $ readIORef transactionStateRef
+    nameCounter <- maybe (throwError NotInTransaction) return transactionState
+    liftIO $ writeIORef transactionStateRef (Just $ succ nameCounter)
+    return $ Renderer.run nameCounter $ \n -> Renderer.char 'v' <> Renderer.word n
+
+-- |
+-- Returns the cursor identifier.
+declareCursor :: Stmt -> Session Cursor
+declareCursor (template, values) =
+  do
+    name <- nextName
+    let
+      template' =
+        "DECLARE ? NO SCROLL CURSOR FOR " <> template
+      values' =
+        (OID.varchar, Just (name, L.Text)) : values
+    executePrepared (template', values')
+    return name
+
+closeCursor :: Cursor -> Session ()
+closeCursor cursor =
+  unitResult =<< execute (template, [])
   where
-    k = LocStmtKey s tl
+    template =
+      Renderer.run cursor $ \c -> Renderer.string7 "CLOSE " <> Renderer.byteString c
 
-parseResult :: Connection -> Maybe L.Result -> M (Maybe Result.Success)
-parseResult c =
-  lift . Result.parse (connection c) >=> 
-  either (throwError . ResultFailure) return
-
-execute :: Connection -> Stmt -> [OID] -> [StmtArg] -> M ()
-execute =
+unitResult :: Maybe Result.Success -> Session ()
+unitResult result =
   $notImplemented
 
-executeCountingEffects :: Connection -> Stmt -> [OID] -> [StmtArg] -> M Integer
-executeCountingEffects c s tl al = 
-  do
-    n <- prepare c s tl
-    r <- parseResult c =<< do liftIO $ L.execPrepared (connection c) n al L.Text
-    case r of
-      Just (Result.RowsAffectedNum r) ->
-        either (throwError . ParserFailure) return $ Parser.run r Parser.integral
-      _ ->
-        $bug "Unexpected result"
+streamResult :: Maybe Result.Success -> Session ResultsStream
+streamResult result =
+  $notImplemented
 
-type ResultStream =
-  Result.Stream
+fetchFromCursor :: Cursor -> Session ResultsStream
+fetchFromCursor cursor =
+  streamResult =<< execute (template, [])
+  where
+    template =
+      Renderer.run cursor $ \c -> 
+        Renderer.string7 "FETCH FORWARD 256 FROM " <> Renderer.byteString c
 
-executeStreaming :: Connection -> Stmt -> [OID] -> [StmtArg] -> M ResultStream 
-executeStreaming c s tl al = 
-  do
-    n <- prepare c s tl
-    r <- parseResult c =<< do liftIO $ L.execPrepared (connection c) n al L.Text
-    case r of
-      Just (Result.Stream r) ->
-        return r
-      _ ->
-        $bug "Unexpected result"
+beginTransaction :: Mode -> Session ()
+beginTransaction mode =
+  unitResult =<< execute (template, [])
+  where
+    template =
+      Renderer.run mode $ \(i, w) ->
+        mconcat $ intersperse (Renderer.char7 ' ') $
+          [
+            Renderer.string7 "BEGIN"
+            ,
+            case i of
+              ReadCommitted  -> Renderer.string7 "ISOLATION LEVEL READ COMMITTED"
+              RepeatableRead -> Renderer.string7 "ISOLATION LEVEL REPEATABLE READ"
+              Serializable   -> Renderer.string7 "ISOLATION LEVEL SERIALIZABLE"
+            ,
+            case w of
+              True  -> "READ WRITE"
+              False -> "READ ONLY"
+          ]
+
+
