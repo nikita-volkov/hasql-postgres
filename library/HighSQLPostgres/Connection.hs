@@ -18,7 +18,7 @@ type Connection =
 -- |
 -- A width of a row and a stream of serialized values.
 type ResultsStream =
-  (Int, ListT IO ByteString)
+  (Int, ListT IO (Maybe ByteString))
 
 
 -- * Errors
@@ -51,19 +51,17 @@ parseResult r =
 
 execute :: Statement.Statement -> Session (Maybe Result.Success)
 execute s =
-  do
-    result <- do
-      (connection, preparer, _) <- ask
-      let (template, params, preparable) = s
-      case preparable of
-        True -> do
-          let (tl, vl) = unzip params
-          key <- lift $ withExceptT ResultError $ StatementPreparer.prepare template tl preparer
-          liftIO $ L.execPrepared connection key vl L.Text
-        False -> do
-          let params' = map (\(t, v) -> (\(vb, vf) -> (t, vb, vf)) <$> v) params
-          liftIO $ L.execParams connection template params' L.Text
-    parseResult result
+  parseResult =<< do
+    (connection, preparer, _) <- ask
+    let (template, params, preparable) = s
+    case preparable of
+      True -> do
+        let (tl, vl) = unzip params
+        key <- lift $ withExceptT ResultError $ StatementPreparer.prepare template tl preparer
+        liftIO $ L.execPrepared connection key vl L.Text
+      False -> do
+        let params' = map (\(t, v) -> (\(vb, vf) -> (t, vb, vf)) <$> v) params
+        liftIO $ L.execParams connection template params' L.Text
 
 -- |
 -- Requires to be in transaction.
@@ -75,6 +73,16 @@ nextName =
     nameCounter <- maybe (throwError NotInTransaction) return transactionState
     liftIO $ writeIORef transactionStateRef (Just $ succ nameCounter)
     return $ Renderer.run nameCounter $ \n -> Renderer.char 'v' <> Renderer.word n
+
+unitResult :: Maybe Result.Success -> Session ()
+unitResult result =
+  $notImplemented
+
+streamResult :: Maybe Result.Success -> Session ResultsStream
+streamResult =
+  \case
+    Just (Result.Stream s) -> return s
+    _ -> throwError $ UnexpectedResult
 
 -- |
 -- Returns the cursor identifier.
@@ -88,14 +96,6 @@ declareCursor statement =
 closeCursor :: Statement.Cursor -> Session ()
 closeCursor cursor =
   unitResult =<< execute (Statement.closeCursor cursor)
-
-unitResult :: Maybe Result.Success -> Session ()
-unitResult result =
-  $notImplemented
-
-streamResult :: Maybe Result.Success -> Session ResultsStream
-streamResult result =
-  $notImplemented
 
 fetchFromCursor :: Statement.Cursor -> Session ResultsStream
 fetchFromCursor cursor =
@@ -114,5 +114,32 @@ finishTransaction commit =
     unitResult =<< execute (bool Statement.abortTransaction Statement.commitTransaction commit)
     (_, _, transactionStateRef) <- ask
     liftIO $ writeIORef transactionStateRef Nothing
+
+inTransaction :: Statement.TransactionMode -> Session r -> Session r
+inTransaction mode session =
+  do
+    beginTransaction mode
+    r <- 
+      catchError session $ 
+        \case
+          ResultError e@(Result.ResultError _ state _ _ _) -> do
+            finishTransaction False
+            -- inTransaction mode session
+            $bug $ "Unimplemented error handling: " <> show e
+          e -> do
+            finishTransaction False
+            throwError e
+    finishTransaction True
+    return r
+
+streamWithCursor :: Statement.Statement -> Session ResultsStream
+streamWithCursor statement =
+  do
+    cursor <- declareCursor statement
+    connection <- ask
+    (w, l) <- fetchFromCursor cursor
+    let remainder =
+          forever $ join $ fmap snd $ lift $ runSession connection $ fetchFromCursor cursor
+    return (w, l <> remainder)
 
 
