@@ -40,6 +40,7 @@ library
   other-modules:
     HighSQLPostgres.Prelude
     HighSQLPostgres.Renderer
+    HighSQLPostgres.Statement
     HighSQLPostgres.Parser
     HighSQLPostgres.Connection
     HighSQLPostgres.Session

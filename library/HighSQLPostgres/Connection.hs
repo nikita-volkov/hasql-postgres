@@ -6,49 +6,19 @@ import qualified Data.ByteString as ByteString
 import qualified HighSQLPostgres.OID as OID
 import qualified HighSQLPostgres.Parser as Parser
 import qualified HighSQLPostgres.Renderer as Renderer
+import qualified HighSQLPostgres.Statement as Statement
 import qualified HighSQLPostgres.LibPQ.Result as Result
 import qualified HighSQLPostgres.LibPQ.Connector as Connector
 import qualified HighSQLPostgres.LibPQ.StatementPreparer as StatementPreparer
 
 
-
 type Connection =
-  (L.Connection, StatementPreparer.StatementPreparer, IORef (Maybe Transaction))
-
-type Transaction =
-  (Word)
+  (L.Connection, StatementPreparer.StatementPreparer, IORef (Maybe Word))
 
 -- |
 -- A width of a row and a stream of serialized values.
 type ResultsStream =
   (Int, ListT IO ByteString)
-
-type Stmt =
-  (ByteString, [(ValueType, Value)])
-
--- |
--- Maybe a rendered value with its serialization format.
--- 'Nothing' implies @NULL@.
-type Value = 
-  Maybe (ByteString, L.Format)
-
-type ValueType =
-  L.Oid
-
-type Cursor =
-  ByteString
-
-
--- * Transaction types
--------------------------
-
-data Isolation =
-  ReadCommitted |
-  RepeatableRead |
-  Serializable 
-
-type Mode =
-  (Isolation, Bool)
 
 
 -- * Errors
@@ -79,23 +49,20 @@ parseResult :: Maybe L.Result -> Session (Maybe Result.Success)
 parseResult r =
   ReaderT $ \(c, _, _) -> lift (Result.parse c r) >>= either (throwError . ResultError) return
 
-executePrepared :: Stmt -> Session (Maybe Result.Success)
-executePrepared s =
-  do
-    (connection, preparer, _) <- ask
-    let (bs, pl) = s
-        (tl, vl) = unzip pl
-    key <- lift $ withExceptT ResultError $ StatementPreparer.prepare bs tl preparer
-    result <- liftIO $ L.execPrepared connection key vl L.Text
-    parseResult result
-
-execute :: Stmt -> Session (Maybe Result.Success)
+execute :: Statement.Statement -> Session (Maybe Result.Success)
 execute s =
   do
-    (connection, _, _) <- ask
-    let (template, pl) = s
-        parameters = map (\(t, v) -> (\(vb, vf) -> (t, vb, vf)) <$> v) pl
-    result <- liftIO $ L.execParams connection template parameters L.Text
+    result <- do
+      (connection, preparer, _) <- ask
+      let (template, params, preparable) = s
+      case preparable of
+        True -> do
+          let (tl, vl) = unzip params
+          key <- lift $ withExceptT ResultError $ StatementPreparer.prepare template tl preparer
+          liftIO $ L.execPrepared connection key vl L.Text
+        False -> do
+          let params' = map (\(t, v) -> (\(vb, vf) -> (t, vb, vf)) <$> v) params
+          liftIO $ L.execParams connection template params' L.Text
     parseResult result
 
 -- |
@@ -111,24 +78,16 @@ nextName =
 
 -- |
 -- Returns the cursor identifier.
-declareCursor :: Stmt -> Session Cursor
-declareCursor (template, values) =
+declareCursor :: Statement.Statement -> Session Statement.Cursor
+declareCursor statement =
   do
     name <- nextName
-    let
-      template' =
-        "DECLARE ? NO SCROLL CURSOR FOR " <> template
-      values' =
-        (OID.varchar, Just (name, L.Text)) : values
-    executePrepared (template', values')
+    unitResult =<< execute (Statement.declareCursor name statement)
     return name
 
-closeCursor :: Cursor -> Session ()
+closeCursor :: Statement.Cursor -> Session ()
 closeCursor cursor =
-  unitResult =<< execute (template, [])
-  where
-    template =
-      Renderer.run cursor $ \c -> Renderer.string7 "CLOSE " <> Renderer.byteString c
+  unitResult =<< execute (Statement.closeCursor cursor)
 
 unitResult :: Maybe Result.Success -> Session ()
 unitResult result =
@@ -138,32 +97,22 @@ streamResult :: Maybe Result.Success -> Session ResultsStream
 streamResult result =
   $notImplemented
 
-fetchFromCursor :: Cursor -> Session ResultsStream
+fetchFromCursor :: Statement.Cursor -> Session ResultsStream
 fetchFromCursor cursor =
-  streamResult =<< execute (template, [])
-  where
-    template =
-      Renderer.run cursor $ \c -> 
-        Renderer.string7 "FETCH FORWARD 256 FROM " <> Renderer.byteString c
+  streamResult =<< execute (Statement.fetchFromCursor cursor)
 
-beginTransaction :: Mode -> Session ()
+beginTransaction :: Statement.TransactionMode -> Session ()
 beginTransaction mode =
-  unitResult =<< execute (template, [])
-  where
-    template =
-      Renderer.run mode $ \(i, w) ->
-        mconcat $ intersperse (Renderer.char7 ' ') $
-          [
-            Renderer.string7 "BEGIN"
-            ,
-            case i of
-              ReadCommitted  -> Renderer.string7 "ISOLATION LEVEL READ COMMITTED"
-              RepeatableRead -> Renderer.string7 "ISOLATION LEVEL REPEATABLE READ"
-              Serializable   -> Renderer.string7 "ISOLATION LEVEL SERIALIZABLE"
-            ,
-            case w of
-              True  -> "READ WRITE"
-              False -> "READ ONLY"
-          ]
+  do
+    (_, _, transactionStateRef) <- ask
+    liftIO $ writeIORef transactionStateRef (Just 0)
+    unitResult =<< execute (Statement.beginTransaction mode)
+
+finishTransaction :: Bool -> Session ()
+finishTransaction commit =
+  do
+    unitResult =<< execute (bool Statement.abortTransaction Statement.commitTransaction commit)
+    (_, _, transactionStateRef) <- ask
+    liftIO $ writeIORef transactionStateRef Nothing
 
 
