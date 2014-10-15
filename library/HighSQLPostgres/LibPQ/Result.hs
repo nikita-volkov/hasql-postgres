@@ -12,7 +12,7 @@ data Error =
     (Maybe ByteString) |
   -- | Status, state, message, detail, hint.
   ResultError 
-    ResultErrorStatus (Maybe ByteString) (Maybe ByteString) (Maybe ByteString) (Maybe ByteString)
+    ResultErrorStatus ByteString (Maybe ByteString) (Maybe ByteString) (Maybe ByteString)
   deriving (Show, Typeable)
   
 
@@ -50,7 +50,7 @@ parse c =
         statusError s =
           ResultError s <$> state <*> message <*> detail <*> hint
           where
-            state   = L.resultErrorField r L.DiagSqlstate
+            state   = fromJust <$> L.resultErrorField r L.DiagSqlstate
             message = L.resultErrorField r L.DiagMessagePrimary
             detail  = L.resultErrorField r L.DiagMessageDetail
             hint    = L.resultErrorField r L.DiagMessageHint
