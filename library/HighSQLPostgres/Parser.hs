@@ -111,6 +111,7 @@ timeZone =
     p <- (charUnit '+' *> pure True) <|> (charUnit '-' *> pure False)
     h <- unsignedIntegral
     m <- (charUnit ':' *> unsignedIntegral) <|> pure 0
+    s <- (charUnit ':' *> unsignedIntegral) <|> pure 0
     return $!
       minutesToTimeZone ((HighSQLPostgres.Prelude.bool negate id p) (60 * h + m))
 

@@ -3,6 +3,7 @@ module HighSQLPostgres where
 import HighSQLPostgres.Prelude hiding (Error)
 import HighSQL.Backend
 import qualified Database.PostgreSQL.LibPQ as L
+import qualified Data.Text.Encoding
 import qualified Data.ByteString as ByteString
 import qualified Data.HashTable.IO as Hashtables
 import qualified HighSQLPostgres.OID as OID
@@ -57,7 +58,7 @@ instance Backend Postgres where
     do
       r <- runSession c $ Session.rowsAffectedResult =<< Session.execute (mkSessionStatement s)
       either 
-        (throwIO . ResultParsingError (Just (r, typeOf (undefined :: Integer))) . Just) 
+        (throwIO . UnparsableResult (typeOf (undefined :: Integer)) r) 
         return 
         (Parser.run r Parser.integral)
   inTransaction (isolation, write) io (Connection c) =
@@ -77,8 +78,8 @@ runSession c s =
     onError =
       \case
         Session.NotInTransaction -> $bug "Unexpected NotInTransaction error"
-        Session.UnexpectedResult -> throwIO $ ResultParsingError Nothing Nothing
-        Session.ResultError e    -> $bug $ "Unexpected result error: " <> show e
+        Session.UnexpectedResult t -> throwIO $ UnexpectedResultStructure t
+        Session.ResultError e -> $bug $ "Unexpected result error: " <> show e
 
 hoistSessionStream :: Session.Context -> Session.Stream -> ResultsStream Postgres
 hoistSessionStream c =
@@ -186,8 +187,9 @@ mkRenderValue o r a =
   StatementArgument (o, Just (Renderer.run a r, L.Text))
 
 {-# INLINE mkParseResult #-}
-mkParseResult :: Parser.P a -> (Result Postgres -> Maybe a)
+mkParseResult :: Parser.P a -> (Result Postgres -> Either Text a)
 mkParseResult p (Result r) =
   do
-    r' <- r
-    either (const Nothing) Just $ Parser.run r' p
+    r' <- maybe (Left "Null result") Right r
+    left (\t -> "Input: " <> Data.Text.Encoding.decodeLatin1 r' <> ". Error: " <> t) $ 
+      Parser.run r' p

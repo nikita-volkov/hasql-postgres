@@ -81,7 +81,7 @@ prop_mappingOfLocalTime (v :: LocalTime) =
 prop_mappingOfZonedTime (v :: ZonedTime) =
   eq v $ fromJust $ do unsafePerformIO $ runSession $ selectSelf v
   where
-    eq (ZonedTime a b) (ZonedTime c d) = a == c && b == d
+    eq (ZonedTime a b) (ZonedTime c d) = (a, b) === (c, d)
 
 prop_mappingOfUTCTime (v :: UTCTime) =
   Just v === do unsafePerformIO $ runSession $ selectSelf v

@@ -22,7 +22,7 @@ newContext c =
 
 data Error =
   NotInTransaction |
-  UnexpectedResult |
+  UnexpectedResult Text |
   ResultError Result.Error
   deriving (Show, Typeable)
 
@@ -77,19 +77,19 @@ unitResult :: Result.Success -> Session ()
 unitResult =
   \case
     Result.CommandOK _ -> return ()
-    _ -> throwError $ UnexpectedResult
+    _ -> throwError $ UnexpectedResult "Not a unit"
 
 streamResult :: Result.Success -> Session Stream
 streamResult =
   \case
     Result.Stream (w, l) -> return (w, hoist liftIO l)
-    _ -> throwError $ UnexpectedResult
+    _ -> throwError $ UnexpectedResult "Not a stream"
 
 rowsAffectedResult :: Result.Success -> Session ByteString
 rowsAffectedResult =
   \case
     Result.CommandOK (Just n) -> return n
-    _ -> throwError $ UnexpectedResult  
+    _ -> throwError $ UnexpectedResult "Not an affected rows number"
 
 -- |
 -- Returns the cursor identifier.
