@@ -44,11 +44,11 @@ run :: Context -> Session r -> IO (Either Error r)
 run c s =
   runExceptT $ runReaderT s c
 
-parseResult :: Maybe L.Result -> Session (Maybe Result.Success)
+parseResult :: Maybe L.Result -> Session Result.Success
 parseResult r =
   ReaderT $ \(c, _, _) -> lift (Result.parse c r) >>= either (throwError . ResultError) return
 
-execute :: Statement.Statement -> Session (Maybe Result.Success)
+execute :: Statement.Statement -> Session Result.Success
 execute s =
   parseResult =<< do
     (connection, preparer, _) <- ask
@@ -73,22 +73,22 @@ nextName =
     liftIO $ writeIORef transactionStateRef (Just $ succ nameCounter)
     return $ Renderer.run nameCounter $ \n -> Renderer.char 'v' <> Renderer.word n
 
-unitResult :: Maybe Result.Success -> Session ()
+unitResult :: Result.Success -> Session ()
 unitResult =
   \case
-    Nothing -> return ()
+    Result.CommandOK _ -> return ()
     _ -> throwError $ UnexpectedResult
 
-streamResult :: Maybe Result.Success -> Session Stream
+streamResult :: Result.Success -> Session Stream
 streamResult =
   \case
-    Just (Result.Stream (w, l)) -> return (w, hoist liftIO l)
+    Result.Stream (w, l) -> return (w, hoist liftIO l)
     _ -> throwError $ UnexpectedResult
 
-rowsAffectedResult :: Maybe Result.Success -> Session ByteString
+rowsAffectedResult :: Result.Success -> Session ByteString
 rowsAffectedResult =
   \case
-    Just (Result.RowsAffectedNum n) -> return n
+    Result.CommandOK (Just n) -> return n
     _ -> throwError $ UnexpectedResult  
 
 -- |

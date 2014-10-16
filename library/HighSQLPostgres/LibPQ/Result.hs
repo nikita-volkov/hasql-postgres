@@ -22,11 +22,11 @@ data ResultErrorStatus =
 
 
 data Success =
-  RowsAffectedNum !ByteString |
+  CommandOK !(Maybe ByteString) |
   Stream !Stream
 
 
-parse :: L.Connection -> Maybe L.Result -> IO (Either Error (Maybe Success))
+parse :: L.Connection -> Maybe L.Result -> IO (Either Error Success)
 parse c =
   \case
     Nothing ->
@@ -35,9 +35,9 @@ parse c =
       L.resultStatus r >>=
         \case
           L.CommandOk ->
-            Right . fmap RowsAffectedNum <$> L.cmdTuples r
+            Right . CommandOK <$> L.cmdTuples r
           L.TuplesOk ->
-            Right . Just . Stream <$> stream r
+            Right . Stream <$> stream r
           L.BadResponse ->
             Left <$> statusError BadResponse
           L.NonfatalError ->

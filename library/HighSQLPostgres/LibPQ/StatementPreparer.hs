@@ -52,8 +52,8 @@ prepare s tl (c, counter, table) =
             r <- liftIO $ LibPQ.prepare c n s (partial (not . null) tl)
             ExceptT $ LibPQ.Result.parse c r
           case r of
-            Nothing -> return ()
-            _ -> $bug "Unexpected result"
+            LibPQ.Result.CommandOK _ -> return ()
+            _ -> $bug $ "Unexpected result"
           liftIO $ Hashtables.insert table k n
           liftIO $ writeIORef counter (succ w)
           return n
