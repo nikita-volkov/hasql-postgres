@@ -10,6 +10,7 @@ import qualified HighSQLPostgres.Parser as Parser
 import qualified HighSQLPostgres.Renderer as Renderer
 import qualified HighSQLPostgres.Session as Session
 import qualified HighSQLPostgres.Statement as Statement
+import qualified HighSQLPostgres.TemplateConverter as TemplateConverter
 import qualified HighSQLPostgres.LibPQ.Connector as Connector
 import qualified ListT
 
@@ -85,7 +86,10 @@ hoistSessionStream c =
 
 mkSessionStatement :: Statement Postgres -> Statement.Statement
 mkSessionStatement (template, values) =
-  (template, map unpackStatementArgument values, True)
+  (convertTemplate template, map unpackStatementArgument values, True)
+  where
+    convertTemplate = 
+      either (error "Unparsable template") id . TemplateConverter.convert
 
 
 -- * Mappings
