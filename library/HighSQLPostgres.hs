@@ -110,7 +110,7 @@ instance Mapping Postgres Bool where
   parseResult = mkParseResult Parser.bool
 
 instance Mapping Postgres Char where
-  renderValue = mkRenderValue OID.char Renderer.char
+  renderValue = mkRenderValue OID.varchar Renderer.char
   parseResult = mkParseResult Parser.utf8Char
 
 instance Mapping Postgres Text where
@@ -146,11 +146,11 @@ instance Mapping Postgres Word8 where
   parseResult = mkParseResult Parser.unsignedIntegral
 
 instance Mapping Postgres Word16 where
-  renderValue = mkRenderValue OID.int2 Renderer.word16
+  renderValue = mkRenderValue OID.int4 Renderer.word16
   parseResult = mkParseResult Parser.unsignedIntegral
 
 instance Mapping Postgres Word32 where
-  renderValue = mkRenderValue OID.int4 Renderer.word32
+  renderValue = mkRenderValue OID.int8 Renderer.word32
   parseResult = mkParseResult Parser.unsignedIntegral
 
 instance Mapping Postgres Word64 where
@@ -170,7 +170,7 @@ instance Mapping Postgres LocalTime where
   parseResult = mkParseResult Parser.localTime
 
 instance Mapping Postgres ZonedTime where
-  renderValue = mkRenderValue OID.timestamp Renderer.zonedTime
+  renderValue = mkRenderValue OID.timestamptz Renderer.zonedTime
   parseResult = mkParseResult Parser.zonedTime
 
 instance Mapping Postgres UTCTime where

@@ -25,8 +25,8 @@ labeling n p =
 bool :: P Bool
 bool =
   labeling "bool" $
-    ((string "true" <|> string "True" <|> string "1") *> pure True) <|>
-    ((string "false" <|> string "False" <|> string "0") *> pure False)
+    ((string "true" <|> string "t" <|> string "True" <|> string "1") *> pure True) <|>
+    ((string "false" <|> string "f" <|> string "False" <|> string "0") *> pure False)
 
 utf8Char :: P Char
 utf8Char =

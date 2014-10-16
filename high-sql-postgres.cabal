@@ -149,6 +149,13 @@ test-suite tests
     quickcheck-instances == 0.3.*,
     QuickCheck == 2.7.*,
     HUnit == 1.2.*,
+    -- data:
+    old-locale == 1.0.*,
+    time == 1.4.*,
+    scientific == 0.3.*,
+    text == 1.1.*,
+    bytestring >= 0.10.4.0 && < 0.11,
+    hashable == 1.2.*,
     -- general:
     list-t == 0.2.*,
     mtl-prelude == 0.1.*,

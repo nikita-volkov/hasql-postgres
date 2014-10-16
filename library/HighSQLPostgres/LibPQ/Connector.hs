@@ -45,7 +45,10 @@ open s =
     do
       v <- lift $ L.serverVersion c
       when (v < 80200) $ throwError $ UnsupportedVersion v
-    lift $ L.exec c "SET standard_conforming_strings TO on;SET datestyle TO ISO"
+    lift $ L.exec c $ mconcat $ map (<> ";") $ 
+      [ "SET standard_conforming_strings TO on",
+        "SET datestyle TO ISO",
+        "SET client_encoding = 'UTF8'" ]
     return c
 
 

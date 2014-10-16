@@ -135,7 +135,7 @@ timeZone :: R TimeZone =
   B.string7 . formatTime defaultTimeLocale (iso8601DateFormat (Just "%z"))
 
 zonedTime :: R ZonedTime = 
-  \(ZonedTime t z) -> localTime t <> char ' ' <> timeZone z
+  B.string7 . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q %z"))
 
 utcTime :: R UTCTime = 
   B.string7 . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q"))

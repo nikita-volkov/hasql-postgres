@@ -4,9 +4,12 @@ module Main where
 import BasePrelude hiding (Read, Write, read, write, assert)
 import MTLPrelude hiding (modify)
 import Test.Framework
-import Test.QuickCheck.Monadic
+import Test.QuickCheck.Instances
 import HighSQL
 import HighSQLPostgres (Postgres(..))
+import Data.Text (Text)
+import Data.Time
+import qualified Data.Text
 import qualified ListT
 
 
@@ -19,74 +22,81 @@ main =
 
 test_mappingOfBool =
   runSession $ do
-    validMapping True
-    validMapping False
+    validMappingSession True
+    validMappingSession False
 
-prop_mappingOfChar =
-  monadicIO $ do
-    v :: Char <- pick arbitrary
-    r <- 
-      liftIO $ runSession $ withoutLocking $ do
-        r <- select $ [q| SELECT ? |] v
-        ListT.head r
-    assert (Just v == r)
+test_mappingOfUTF8Char =
+  runSession $ do
+    validMappingSession 'Й'
 
--- test_mappingOfText =
---   undefined
+-- Postgres does not allow the '/NUL' character in text data
+prop_mappingOfChar (v :: Char) =
+  (v /= '\NUL') ==>
+    Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfInt =
---   undefined
+-- Postgres does not allow the '/NUL' character in text data
+prop_mappingOfText (v :: Text) =
+  (isNothing $ Data.Text.find (== '\NUL') v) ==>
+    Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfInt8 =
---   undefined
+prop_mappingOfInt (v :: Int) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfInt16 =
---   undefined
+prop_mappingOfInt8 (v :: Int8) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfInt32 =
---   undefined
+prop_mappingOfInt16 (v :: Int16) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfInt64 =
---   undefined
+prop_mappingOfInt32 (v :: Int32) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfWord =
---   undefined
+prop_mappingOfInt64 (v :: Int64) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfWord8 =
---   undefined
+prop_mappingOfWord (v :: Word) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfWord16 =
---   undefined
+prop_mappingOfWord8 (v :: Word8) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfWord32 =
---   undefined
+prop_mappingOfWord16 (v :: Word16) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfWord64 =
---   undefined
+prop_mappingOfWord32 (v :: Word32) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfDay =
---   undefined
+prop_mappingOfWord64 (v :: Word64) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfTimeOfDay =
---   undefined
+prop_mappingOfDay (v :: Day) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfLocalTime =
---   undefined
+prop_mappingOfTimeOfDay (v :: TimeOfDay) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfZonedTime =
---   undefined
+prop_mappingOfLocalTime (v :: LocalTime) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
--- test_mappingOfUTCTime =
---   undefined
+prop_mappingOfZonedTime (v :: ZonedTime) =
+  eq v $ fromJust $ do unsafePerformIO $ runSession $ selectSelf v
+  where
+    eq (ZonedTime a b) (ZonedTime c d) = a == c && b == d
 
-validMapping :: RowParser Postgres a => Mapping Postgres a => Show a => Eq a => Typeable a => a -> Session ()
-validMapping v =
-  do
-    r <- withoutLocking $ do
-      r <- select $ [q| SELECT ? |] v
-      ListT.head r
-    liftIO $ assertEqual (Just v) r
+prop_mappingOfUTCTime (v :: UTCTime) =
+  Just v === do unsafePerformIO $ runSession $ selectSelf v
 
+selectSelf :: RowParser Postgres a => Mapping Postgres a => Typeable a => a -> Session (Maybe a)
+selectSelf v =
+  withoutLocking $ do
+    r <- select $ [q| SELECT ? |] v
+    ListT.head r
+
+validMappingSession :: 
+  RowParser Postgres a => Mapping Postgres a => Typeable a => Show a => Eq a => 
+  a -> Session ()
+validMappingSession v =
+  selectSelf v >>= liftIO . assertEqual (Just v)
 
 
 -- * Session monad
