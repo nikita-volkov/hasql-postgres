@@ -1,17 +1,54 @@
 module HighSQLPostgres.Parser where
 
-import HighSQLPostgres.Prelude
+import HighSQLPostgres.Prelude hiding (take)
 import Data.Attoparsec.ByteString
+import qualified Data.Text
+import qualified Data.Text.Encoding
+import qualified Data.Text.Lazy
+import qualified Data.Text.Lazy.Encoding
 
 
 type P = Parser
 
 run :: ByteString -> P a -> Either Text a
-run = (left fromString .) . flip parseOnly
+run input parser =
+  left fromString $ parseOnly (parser <* endOfInput) input
 
 
 -- ** Parser
 -------------------------
+
+labeling :: String -> Parser a -> Parser a
+labeling n p = 
+  p <?> n
+
+bool :: P Bool
+bool =
+  labeling "bool" $
+    ((string "true" <|> string "True" <|> string "1") *> pure True) <|>
+    ((string "false" <|> string "False" <|> string "0") *> pure False)
+
+utf8Char :: P Char
+utf8Char =
+  labeling "utf8Char" $
+    asum $ map byLength [1..4]
+  where
+    byLength l =
+      do
+        b <- take l
+        t <- either (const empty) return $ Data.Text.Encoding.decodeUtf8' b
+        (c, _) <- maybe empty return $ Data.Text.uncons t
+        return c
+
+utf8LazyText :: P Data.Text.Lazy.Text
+utf8LazyText =
+  labeling "utf8LazyText" $ do
+    b <- takeLazyByteString
+    either (const empty) return $ Data.Text.Lazy.Encoding.decodeUtf8' b
+
+utf8Text :: P Text
+utf8Text =
+  Data.Text.Lazy.toStrict <$> utf8LazyText
 
 charUnit :: Char -> P ()
 charUnit c = 
@@ -75,7 +112,7 @@ timeZone =
     h <- unsignedIntegral
     m <- (charUnit ':' *> unsignedIntegral) <|> pure 0
     return $!
-      minutesToTimeZone ((bool negate id p) (60 * h + m))
+      minutesToTimeZone ((HighSQLPostgres.Prelude.bool negate id p) (60 * h + m))
 
 zonedTime :: P ZonedTime
 zonedTime = 

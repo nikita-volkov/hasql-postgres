@@ -24,10 +24,10 @@ data Postgres =
   }
 
 instance Backend Postgres where
-  type StatementArgument Postgres = 
-    (L.Oid, Maybe (ByteString, L.Format))
+  newtype StatementArgument Postgres = 
+    StatementArgument {unpackStatementArgument :: (L.Oid, Maybe (ByteString, L.Format))}
   newtype Result Postgres = 
-    Result (Maybe ByteString)
+    Result {unpackResult :: (Maybe ByteString)}
   newtype Connection Postgres = 
     Connection Session.Context
   connect p =
@@ -85,18 +85,101 @@ hoistSessionStream c =
 
 mkSessionStatement :: Statement Postgres -> Statement.Statement
 mkSessionStatement (template, values) =
-  (template, values, True)
+  (template, map unpackStatementArgument values, True)
 
 
 -- * Mappings
 -------------------------
 
+instance Mapping Postgres a => Mapping Postgres (Maybe a) where
+  renderValue =
+    \case
+      Nothing -> 
+        case renderValue (undefined :: a) of
+          StatementArgument (oid, _) -> StatementArgument (oid, Nothing)
+      Just v ->
+        renderValue v
+  parseResult = traverse (parseResult . Result . Just) . unpackResult
+
+instance Mapping Postgres Bool where
+  renderValue = mkRenderValue OID.bool Renderer.bool
+  parseResult = mkParseResult Parser.bool
+
+instance Mapping Postgres Char where
+  renderValue = mkRenderValue OID.char Renderer.char
+  parseResult = mkParseResult Parser.utf8Char
+
+instance Mapping Postgres Text where
+  renderValue = mkRenderValue OID.text Renderer.text
+  parseResult = mkParseResult Parser.utf8Text
+
+instance Mapping Postgres Int where
+  renderValue = mkRenderValue OID.int8 Renderer.int
+  parseResult = mkParseResult Parser.integral
+
+instance Mapping Postgres Int8 where
+  renderValue = mkRenderValue OID.int2 Renderer.int8
+  parseResult = mkParseResult Parser.integral
+
+instance Mapping Postgres Int16 where
+  renderValue = mkRenderValue OID.int2 Renderer.int16
+  parseResult = mkParseResult Parser.integral
+
+instance Mapping Postgres Int32 where
+  renderValue = mkRenderValue OID.int4 Renderer.int32
+  parseResult = mkParseResult Parser.integral
+
+instance Mapping Postgres Int64 where
+  renderValue = mkRenderValue OID.int8 Renderer.int64
+  parseResult = mkParseResult Parser.integral
+
+instance Mapping Postgres Word where
+  renderValue = mkRenderValue OID.int8 Renderer.word
+  parseResult = mkParseResult Parser.unsignedIntegral
+
+instance Mapping Postgres Word8 where
+  renderValue = mkRenderValue OID.int2 Renderer.word8
+  parseResult = mkParseResult Parser.unsignedIntegral
+
+instance Mapping Postgres Word16 where
+  renderValue = mkRenderValue OID.int2 Renderer.word16
+  parseResult = mkParseResult Parser.unsignedIntegral
+
+instance Mapping Postgres Word32 where
+  renderValue = mkRenderValue OID.int4 Renderer.word32
+  parseResult = mkParseResult Parser.unsignedIntegral
+
+instance Mapping Postgres Word64 where
+  renderValue = mkRenderValue OID.int8 Renderer.word64
+  parseResult = mkParseResult Parser.unsignedIntegral
+
+instance Mapping Postgres Day where
+  renderValue = mkRenderValue OID.date Renderer.day
+  parseResult = mkParseResult Parser.day
+
+instance Mapping Postgres TimeOfDay where
+  renderValue = mkRenderValue OID.time Renderer.timeOfDay
+  parseResult = mkParseResult Parser.timeOfDay
+
+instance Mapping Postgres LocalTime where
+  renderValue = mkRenderValue OID.timestamp Renderer.localTime
+  parseResult = mkParseResult Parser.localTime
+
+instance Mapping Postgres ZonedTime where
+  renderValue = mkRenderValue OID.timestamp Renderer.zonedTime
+  parseResult = mkParseResult Parser.zonedTime
+
+instance Mapping Postgres UTCTime where
+  renderValue = mkRenderValue OID.timestamptz Renderer.utcTime
+  parseResult = mkParseResult Parser.utcTime
+
+
 -- |
 -- Make a 'renderValue' function with the 'Text' format.
 {-# INLINE mkRenderValue #-}
-mkRenderValue :: L.Oid -> Renderer.R a -> (a -> (L.Oid, Maybe (ByteString, L.Format)))
+mkRenderValue :: L.Oid -> Renderer.R a -> (a -> StatementArgument Postgres)
 mkRenderValue o r a =
-  (o, Just (Renderer.run a r, L.Text))
+  StatementArgument (o, Just (Renderer.run a r, L.Text))
 
 {-# INLINE mkParseResult #-}
 mkParseResult :: Parser.P a -> (Result Postgres -> Maybe a)
@@ -104,20 +187,3 @@ mkParseResult p (Result r) =
   do
     r' <- r
     either (const Nothing) Just $ Parser.run r' p
-
-instance Mapping Postgres Int where
-  renderValue = mkRenderValue OID.int8 Renderer.int
-  parseResult = mkParseResult Parser.integral
-
-instance Mapping Postgres Word where
-  renderValue = mkRenderValue OID.int8 Renderer.word
-  parseResult = mkParseResult Parser.integral
-
-instance Mapping Postgres Int64 where
-  renderValue = mkRenderValue OID.int8 Renderer.int64
-  parseResult = mkParseResult Parser.integral
-
-instance Mapping Postgres TimeOfDay where
-  renderValue = mkRenderValue OID.time Renderer.timeOfDay
-  parseResult = mkParseResult Parser.timeOfDay
-
