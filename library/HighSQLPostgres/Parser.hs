@@ -108,19 +108,37 @@ localTime :: P LocalTime
 localTime = 
   LocalTime <$> day <*> (charUnit ' ' *> timeOfDay)
 
-timeZone :: P TimeZone
-timeZone =
+timeZoneTuple :: P (Bool, Int, Int, Int)
+timeZoneTuple =
   do
     p <- (charUnit '+' *> pure True) <|> (charUnit '-' *> pure False)
     h <- unsignedIntegral
     m <- (charUnit ':' *> unsignedIntegral) <|> pure 0
     s <- (charUnit ':' *> unsignedIntegral) <|> pure 0
+    return $! (p, h, m, s)
+
+timeZone :: P TimeZone
+timeZone =
+  do
+    (p, h, m, s) <- timeZoneTuple
     return $!
       minutesToTimeZone ((HighSQLPostgres.Prelude.bool negate id p) (60 * h + m))
 
+-- |
+-- Takes seconds in timezone into account.
 zonedTime :: P ZonedTime
 zonedTime = 
-  ZonedTime <$> localTime <*> timeZone
+  do
+    LocalTime d t <- localTime
+    (zp, zh, zm, zs) <- timeZoneTuple
+    return $ ZonedTime (LocalTime d (timeOfDayDiffSecs zs t)) (composeTimezone zp zh zm)
+  where
+    timeOfDayDiffSecs s =
+      if s /= 0
+        then \t -> timeToTimeOfDay $ timeOfDayToTime t - fromIntegral s
+        else id
+    composeTimezone p h m =
+      minutesToTimeZone ((HighSQLPostgres.Prelude.bool negate id p) (60 * h + m))
 
 utcTime :: P UTCTime
 utcTime =

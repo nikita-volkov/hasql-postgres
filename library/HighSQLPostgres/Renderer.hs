@@ -88,6 +88,14 @@ int :: R Int =
 integer :: R Integer =
   B.integerDec
 
+paddedInt :: Int -> R Int
+paddedInt padding n =
+  if padding <= width
+    then int n
+    else mconcat (replicate (padding - width) (B.char7 '0')) <> int n
+  where
+    width = fromIntegral (succ (floor (logBase 10 (fromIntegral n))) :: Integer)
+    
 
 -- *** fractionals
 -------------------------
@@ -131,11 +139,18 @@ timeOfDay :: R TimeOfDay =
 localTime :: R LocalTime = 
   B.string7 . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q"))
 
-timeZone :: R TimeZone = 
-  B.string7 . formatTime defaultTimeLocale (iso8601DateFormat (Just "%z"))
+timeZone :: R TimeZone =
+  \(TimeZone t _ _) ->
+    if t < 0
+      then B.char7 '-' <> uncurry hm (divMod (negate t) 60)
+      else B.char7 '+' <> uncurry hm (divMod t 60)
+  where
+    hm h m = 
+      paddedInt 2 h <> B.char7 ':' <> paddedInt 2 m 
 
 zonedTime :: R ZonedTime = 
-  B.string7 . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q %z"))
+  \(ZonedTime lt tz) ->
+    localTime lt <> timeZone tz
 
 utcTime :: R UTCTime = 
   B.string7 . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q"))
