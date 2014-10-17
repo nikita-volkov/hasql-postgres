@@ -41,10 +41,8 @@ declareCursor :: Cursor -> Statement -> Statement
 declareCursor cursor (template, values, preparable) =
   let
     template' =
-      "DECLARE ? NO SCROLL CURSOR FOR " <> template
-    values' =
-      (OID.varchar, Just (cursor, L.Text)) : values
-    in (template', values', preparable)
+      "DECLARE " <> cursor <> " NO SCROLL CURSOR FOR " <> template
+    in (template', values, preparable)
 
 closeCursor :: Cursor -> Statement
 closeCursor cursor =

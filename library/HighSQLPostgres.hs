@@ -11,7 +11,6 @@ import qualified HighSQLPostgres.Parser as Parser
 import qualified HighSQLPostgres.Renderer as Renderer
 import qualified HighSQLPostgres.Session as Session
 import qualified HighSQLPostgres.Statement as Statement
-import qualified HighSQLPostgres.TemplateConverter as TemplateConverter
 import qualified HighSQLPostgres.LibPQ.Connector as Connector
 import qualified ListT
 
@@ -77,9 +76,17 @@ runSession c s =
   where
     onError =
       \case
-        Session.NotInTransaction -> $bug "Unexpected NotInTransaction error"
-        Session.UnexpectedResult t -> throwIO $ UnexpectedResultStructure t
-        Session.ResultError e -> $bug $ "Unexpected result error: " <> show e
+        Session.NotInTransaction -> 
+          $bug "Unexpected NotInTransaction error"
+        Session.UnexpectedResult t -> 
+          throwIO $ UnexpectedResultStructure t
+        Session.ResultError e -> 
+          $bug $ "Unexpected result error: " <> show e
+        Session.UnparsableTemplate b t -> 
+          $bug $ 
+            "Unexpected unparsable template error. " <>
+            "Template: " <> show b <> ". " <>
+            "Error: " <> show t <> "."
 
 hoistSessionStream :: Session.Context -> Session.Stream -> ResultsStream Postgres
 hoistSessionStream c =
@@ -87,10 +94,7 @@ hoistSessionStream c =
 
 mkSessionStatement :: Statement Postgres -> Statement.Statement
 mkSessionStatement (template, values) =
-  (convertTemplate template, map unpackStatementArgument values, True)
-  where
-    convertTemplate = 
-      either (error "Unparsable template") id . TemplateConverter.convert
+  (template, map unpackStatementArgument values, True)
 
 
 -- * Mappings

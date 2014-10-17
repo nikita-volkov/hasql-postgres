@@ -5,6 +5,7 @@ import qualified Database.PostgreSQL.LibPQ as L
 import qualified HighSQLPostgres.OID as OID
 import qualified HighSQLPostgres.Renderer as Renderer
 import qualified HighSQLPostgres.Statement as Statement
+import qualified HighSQLPostgres.TemplateConverter as TemplateConverter
 import qualified HighSQLPostgres.LibPQ.Result as Result
 import qualified HighSQLPostgres.LibPQ.StatementPreparer as StatementPreparer
 
@@ -23,7 +24,8 @@ newContext c =
 data Error =
   NotInTransaction |
   UnexpectedResult Text |
-  ResultError Result.Error
+  ResultError Result.Error |
+  UnparsableTemplate ByteString Text
   deriving (Show, Typeable)
 
 
@@ -53,14 +55,16 @@ execute s =
   parseResult =<< do
     (connection, preparer, _) <- ask
     let (template, params, preparable) = s
+    convertedTemplate <-
+      either (throwError . UnparsableTemplate template) return $ TemplateConverter.convert template
     case preparable of
       True -> do
         let (tl, vl) = unzip params
-        key <- lift $ withExceptT ResultError $ StatementPreparer.prepare template tl preparer
+        key <- lift $ withExceptT ResultError $ StatementPreparer.prepare convertedTemplate tl preparer
         liftIO $ L.execPrepared connection key vl L.Text
       False -> do
         let params' = map (\(t, v) -> (\(vb, vf) -> (t, vb, vf)) <$> v) params
-        liftIO $ L.execParams connection template params' L.Text
+        liftIO $ L.execParams connection convertedTemplate params' L.Text
 
 -- |
 -- Requires to be in transaction.
@@ -146,7 +150,7 @@ streamWithCursor statement =
     connection <- ask
     (w, l) <- fetchFromCursor cursor
     let remainder =
-          forever $ fmap snd $ lift $ fetchFromCursor cursor
+          forever $ join $ fmap snd $ lift $ fetchFromCursor cursor
     return (w, l <> remainder)
 
 

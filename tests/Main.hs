@@ -29,11 +29,22 @@ test_transactionConflictResolution =
 test_transaction =
   unitTestPending ""
 
+test_cursorResultsOrder =
+  unitTestPending ""
+
 test_cursor =
   runSession $ do
-    r :: [(Text, Text)] <-
+    r :: [(Word, Text)] <-
       read ReadCommitted $ do
         l <- selectWithCursor [q|select oid, typname from pg_type|]
+        ListT.toList l
+    liftIO $ assertNotEqual [] r
+
+test_select =
+  runSession $ do
+    r :: [(Word, Text)] <-
+      withoutLocking $ do
+        l <- select [q|select oid, typname from pg_type|]
         ListT.toList l
     liftIO $ assertNotEqual [] r
 
