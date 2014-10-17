@@ -30,7 +30,12 @@ test_transaction =
   unitTestPending ""
 
 test_cursor =
-  unitTestPending ""
+  runSession $ do
+    r :: [(Text, Text)] <-
+      read ReadCommitted $ do
+        l <- selectWithCursor [q|select oid, typname from pg_type|]
+        ListT.toList l
+    liftIO $ assertNotEqual [] r
 
 test_mappingOfMaybe =
   runSession $ do
@@ -126,14 +131,14 @@ microsDiffTimeGen :: Gen DiffTime
 microsDiffTimeGen = do
   fmap picosecondsToDiffTime $ fmap (* (10^6)) $ choose (0, (10^6)*24*60*60)
 
-selectSelf :: RowParser Postgres a => Mapping Postgres a => Typeable a => a -> Session (Maybe a)
+selectSelf :: Mapping Postgres a => Typeable a => a -> Session (Maybe a)
 selectSelf v =
   withoutLocking $ do
     r <- select $ [q| SELECT ? |] v
-    ListT.head r
+    ListT.head $ fmap runIdentity r
 
 validMappingSession :: 
-  RowParser Postgres a => Mapping Postgres a => Typeable a => Show a => Eq a => 
+  Mapping Postgres a => Typeable a => Show a => Eq a => 
   a -> Session ()
 validMappingSession v =
   selectSelf v >>= liftIO . assertEqual (Just v)
