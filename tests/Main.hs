@@ -83,8 +83,15 @@ prop_mappingOfZonedTime (v :: ZonedTime) =
   where
     eq (ZonedTime a b) (ZonedTime c d) = (a, b) === (c, d)
 
-prop_mappingOfUTCTime (v :: UTCTime) =
-  Just v === do unsafePerformIO $ runSession $ selectSelf v
+prop_mappingOfUTCTime =
+  forAll gen $ \v ->
+    Just v === do unsafePerformIO $ runSession $ selectSelf v
+  where
+    gen = UTCTime <$> arbitrary <*> microsDiffTimeGen
+
+microsDiffTimeGen :: Gen DiffTime
+microsDiffTimeGen = do
+  fmap picosecondsToDiffTime $ fmap (* (10^6)) $ choose (0, (10^6)*24*60*60)
 
 selectSelf :: RowParser Postgres a => Mapping Postgres a => Typeable a => a -> Session (Maybe a)
 selectSelf v =

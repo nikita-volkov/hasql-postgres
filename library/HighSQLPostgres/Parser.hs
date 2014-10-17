@@ -2,6 +2,7 @@ module HighSQLPostgres.Parser where
 
 import HighSQLPostgres.Prelude hiding (take)
 import Data.Attoparsec.ByteString
+import qualified Data.ByteString
 import qualified Data.Text
 import qualified Data.Text.Encoding
 import qualified Data.Text.Lazy
@@ -95,11 +96,13 @@ timeOfDay =
     m <- unsignedIntegral
     charUnit ':'
     s <- unsignedIntegral
-    p <- (charUnit '.' *> unsignedIntegral) <|> pure 0
+    p <- (charUnit '.' *> decimals) <|> pure 0
     maybe empty return 
-      (makeTimeOfDayValid h m (fromIntegral s + afterPoint (fromIntegral p)))
+      (makeTimeOfDayValid h m (fromIntegral s + p))
   where
-    afterPoint n = if n < 1 then n else afterPoint (n / 10)
+    decimals = do
+      (b, i) <- match unsignedIntegral
+      return $ fromIntegral i / (10 ^ Data.ByteString.length b)
 
 localTime :: P LocalTime
 localTime = 
@@ -121,9 +124,7 @@ zonedTime =
 
 utcTime :: P UTCTime
 utcTime =
-  compose <$> day <*> (charUnit ' ' *> timeOfDay) <*> timeZone
-  where
-    compose day time zone =
-      case localToUTCTimeOfDay zone time of
-        (dayDelta, time) ->
-          UTCTime (addDays dayDelta day) (timeOfDayToTime time)
+  UTCTime <$> day <*> (charUnit ' ' *> diffTime)
+
+diffTime :: P DiffTime
+diffTime = timeOfDayToTime <$> timeOfDay

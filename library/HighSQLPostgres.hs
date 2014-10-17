@@ -175,7 +175,7 @@ instance Mapping Postgres ZonedTime where
   parseResult = mkParseResult Parser.zonedTime
 
 instance Mapping Postgres UTCTime where
-  renderValue = mkRenderValue OID.timestamptz Renderer.utcTime
+  renderValue = mkRenderValue OID.timestamp Renderer.utcTime
   parseResult = mkParseResult Parser.utcTime
 
 
