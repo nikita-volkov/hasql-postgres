@@ -17,8 +17,10 @@ main =
   htfMain $ htf_thisModulesTests
 
 
--- test_null
--- test_mappingOfMaybe
+test_mappingOfMaybe =
+  runSession $ do
+    validMappingSession (Just '!')
+    validMappingSession (Nothing :: Maybe Bool)
 
 test_mappingOfBool =
   runSession $ do
