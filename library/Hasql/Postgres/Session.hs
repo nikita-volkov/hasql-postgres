@@ -1,13 +1,13 @@
-module HighSQLPostgres.Session where
+module Hasql.Postgres.Session where
 
-import HighSQLPostgres.Prelude hiding (Error)
+import Hasql.Postgres.Prelude hiding (Error)
 import qualified Database.PostgreSQL.LibPQ as L
-import qualified HighSQLPostgres.OID as OID
-import qualified HighSQLPostgres.Renderer as Renderer
-import qualified HighSQLPostgres.Statement as Statement
-import qualified HighSQLPostgres.TemplateConverter as TemplateConverter
-import qualified HighSQLPostgres.LibPQ.Result as Result
-import qualified HighSQLPostgres.LibPQ.StatementPreparer as StatementPreparer
+import qualified Hasql.Postgres.OID as OID
+import qualified Hasql.Postgres.Renderer as Renderer
+import qualified Hasql.Postgres.Statement as Statement
+import qualified Hasql.Postgres.TemplateConverter as TemplateConverter
+import qualified Hasql.Postgres.LibPQ.Result as Result
+import qualified Hasql.Postgres.LibPQ.StatementPreparer as StatementPreparer
 
 
 type Context =

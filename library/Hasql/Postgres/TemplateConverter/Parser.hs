@@ -1,6 +1,6 @@
-module HighSQLPostgres.TemplateConverter.Parser where
+module Hasql.Postgres.TemplateConverter.Parser where
 
-import HighSQLPostgres.Prelude
+import Hasql.Postgres.Prelude
 import Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Builder as BB

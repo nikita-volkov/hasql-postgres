@@ -1,9 +1,9 @@
 {-# OPTIONS_GHC -F -pgmF htfpp #-}
-module HighSQLPostgres.ParserTests where
+module Hasql.Postgres.ParserTests where
 
 import Test.Framework
-import HighSQLPostgres.Prelude
-import HighSQLPostgres.Parser
+import Hasql.Postgres.Prelude
+import Hasql.Postgres.Parser
 import qualified Data.Text.Encoding
 
 

@@ -1,16 +1,16 @@
 name:
-  high-sql-postgres
+  hasql-postgres
 version:
   0.1.0
 synopsis:
-  A "PostgreSQL" driver for the "high-sql" library
+  A "PostgreSQL" driver for the "hasql" library
 description:
 category:
   Database
 homepage:
-  https://github.com/nikita-volkov/high-sql-postgres 
+  https://github.com/nikita-volkov/hasql-postgres 
 bug-reports:
-  https://github.com/nikita-volkov/high-sql-postgres/issues 
+  https://github.com/nikita-volkov/hasql-postgres/issues 
 author:
   Nikita Volkov <nikita.y.volkov@mail.ru>
 maintainer:
@@ -31,32 +31,32 @@ source-repository head
   type:
     git
   location:
-    git://github.com/nikita-volkov/high-sql-postgres.git
+    git://github.com/nikita-volkov/hasql-postgres.git
 
 
 library
   hs-source-dirs:
     library
   other-modules:
-    HighSQLPostgres.Prelude
-    HighSQLPostgres.Renderer
-    HighSQLPostgres.ErrorCode
-    HighSQLPostgres.OID
-    HighSQLPostgres.Statement
-    HighSQLPostgres.Parser
-    HighSQLPostgres.Session
-    HighSQLPostgres.TemplateConverter
-    HighSQLPostgres.TemplateConverter.Parser
-    HighSQLPostgres.LibPQ.Connector
-    HighSQLPostgres.LibPQ.Result
-    HighSQLPostgres.LibPQ.StatementPreparer
+    Hasql.Postgres.Prelude
+    Hasql.Postgres.Renderer
+    Hasql.Postgres.ErrorCode
+    Hasql.Postgres.OID
+    Hasql.Postgres.Statement
+    Hasql.Postgres.Parser
+    Hasql.Postgres.Session
+    Hasql.Postgres.TemplateConverter
+    Hasql.Postgres.TemplateConverter.Parser
+    Hasql.Postgres.LibPQ.Connector
+    Hasql.Postgres.LibPQ.Result
+    Hasql.Postgres.LibPQ.StatementPreparer
   exposed-modules:
-    HighSQLPostgres
+    Hasql.Postgres
   build-depends:
     -- parsers:
     attoparsec == 0.12.*,
     -- database:
-    high-sql == 0.1.*,
+    hasql == 0.1.*,
     postgresql-libpq == 0.9.*,
     -- data:
     old-locale == 1.0.*,
@@ -102,7 +102,7 @@ test-suite library-tests
     -- parsers:
     attoparsec == 0.12.*,
     -- database:
-    high-sql == 0.1.*,
+    hasql == 0.1.*,
     postgresql-libpq == 0.9.*,
     -- data:
     utf8-string >= 0.3.8 && < 0.4,
@@ -142,8 +142,8 @@ test-suite tests
   main-is:          
     Main.hs
   build-depends:
-    high-sql-postgres,
-    high-sql == 0.1.*,
+    hasql-postgres,
+    hasql == 0.1.*,
     -- testing:
     HTF == 0.12.*,
     quickcheck-instances == 0.3.*,

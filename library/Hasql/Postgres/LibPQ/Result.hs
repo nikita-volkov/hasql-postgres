@@ -1,6 +1,6 @@
-module HighSQLPostgres.LibPQ.Result where
+module Hasql.Postgres.LibPQ.Result where
 
-import HighSQLPostgres.Prelude hiding (Error)
+import Hasql.Postgres.Prelude hiding (Error)
 import qualified Database.PostgreSQL.LibPQ as L
 import qualified ListT
 

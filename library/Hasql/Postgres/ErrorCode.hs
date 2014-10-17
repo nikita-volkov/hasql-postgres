@@ -1,7 +1,7 @@
 -- |
 -- Error codes.
 -- See <http://www.postgresql.org/docs/current/interactive/errcodes-appendix.html>
-module HighSQLPostgres.ErrorCode where
+module Hasql.Postgres.ErrorCode where
 
 import qualified Data.ByteString
 

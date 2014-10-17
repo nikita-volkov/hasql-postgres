@@ -5,8 +5,8 @@ import BasePrelude hiding (Read, Write, read, write, assert)
 import MTLPrelude hiding (modify)
 import Test.Framework
 import Test.QuickCheck.Instances
-import HighSQL
-import HighSQLPostgres (Postgres(..))
+import Hasql
+import Hasql.Postgres (Postgres(..))
 import Data.Text (Text)
 import Data.Time
 import qualified Data.Text

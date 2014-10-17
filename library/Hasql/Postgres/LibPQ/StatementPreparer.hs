@@ -1,12 +1,12 @@
 -- |
 -- A component, which prepares statements.
-module HighSQLPostgres.LibPQ.StatementPreparer where
+module Hasql.Postgres.LibPQ.StatementPreparer where
 
-import HighSQLPostgres.Prelude
+import Hasql.Postgres.Prelude
 import qualified Data.HashTable.IO as Hashtables
 import qualified Database.PostgreSQL.LibPQ as LibPQ
-import qualified HighSQLPostgres.Renderer as Renderer
-import qualified HighSQLPostgres.LibPQ.Result as LibPQ.Result
+import qualified Hasql.Postgres.Renderer as Renderer
+import qualified Hasql.Postgres.LibPQ.Result as LibPQ.Result
 
 
 

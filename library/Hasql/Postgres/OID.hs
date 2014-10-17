@@ -1,4 +1,4 @@
-module HighSQLPostgres.OID where
+module Hasql.Postgres.OID where
 
 import Database.PostgreSQL.LibPQ (Oid(..))
 

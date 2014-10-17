@@ -2,10 +2,10 @@
 module Main where
 
 import Test.Framework
-import HighSQLPostgres.Prelude
+import Hasql.Postgres.Prelude
 
-import {-@ HTF_TESTS @-} HighSQLPostgres.ParserTests
-import {-@ HTF_TESTS @-} HighSQLPostgres.TemplateConverterTests
+import {-@ HTF_TESTS @-} Hasql.Postgres.ParserTests
+import {-@ HTF_TESTS @-} Hasql.Postgres.TemplateConverterTests
 
 main = 
   htfMain $ htf_thisModulesTests : htf_importedTests

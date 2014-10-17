@@ -1,9 +1,9 @@
-module HighSQLPostgres.Statement where
+module Hasql.Postgres.Statement where
 
-import HighSQLPostgres.Prelude
+import Hasql.Postgres.Prelude
 import qualified Database.PostgreSQL.LibPQ as L
-import qualified HighSQLPostgres.OID as OID
-import qualified HighSQLPostgres.Renderer as Renderer
+import qualified Hasql.Postgres.OID as OID
+import qualified Hasql.Postgres.Renderer as Renderer
 
 
 type Statement =

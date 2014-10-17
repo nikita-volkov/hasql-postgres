@@ -1,6 +1,6 @@
-module HighSQLPostgres.Parser where
+module Hasql.Postgres.Parser where
 
-import HighSQLPostgres.Prelude hiding (take)
+import Hasql.Postgres.Prelude hiding (take)
 import Data.Attoparsec.ByteString
 import qualified Data.ByteString
 import qualified Data.Text
@@ -122,7 +122,7 @@ timeZone =
   do
     (p, h, m, s) <- timeZoneTuple
     return $!
-      minutesToTimeZone ((HighSQLPostgres.Prelude.bool negate id p) (60 * h + m))
+      minutesToTimeZone ((Hasql.Postgres.Prelude.bool negate id p) (60 * h + m))
 
 -- |
 -- Takes seconds in timezone into account.
@@ -138,7 +138,7 @@ zonedTime =
         then \t -> timeToTimeOfDay $ timeOfDayToTime t - fromIntegral s
         else id
     composeTimezone p h m =
-      minutesToTimeZone ((HighSQLPostgres.Prelude.bool negate id p) (60 * h + m))
+      minutesToTimeZone ((Hasql.Postgres.Prelude.bool negate id p) (60 * h + m))
 
 utcTime :: P UTCTime
 utcTime =

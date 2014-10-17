@@ -1,9 +1,9 @@
-module HighSQLPostgres.TemplateConverter where
+module Hasql.Postgres.TemplateConverter where
 
-import HighSQLPostgres.Prelude
+import Hasql.Postgres.Prelude
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Builder as BB
-import qualified HighSQLPostgres.TemplateConverter.Parser as Parser
+import qualified Hasql.Postgres.TemplateConverter.Parser as Parser
 
 
 convert :: ByteString -> Either Text ByteString

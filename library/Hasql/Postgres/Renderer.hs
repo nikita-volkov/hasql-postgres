@@ -1,9 +1,9 @@
 -- |
 -- Useful info:
 -- https://github.com/hdbc/hdbc/blob/7ed3dfad534773cbfe2811ea241d245009e2961b/Database/HDBC/SqlValue.hs#L252
-module HighSQLPostgres.Renderer where
+module Hasql.Postgres.Renderer where
 
-import HighSQLPostgres.Prelude
+import Hasql.Postgres.Prelude
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text.Encoding as T

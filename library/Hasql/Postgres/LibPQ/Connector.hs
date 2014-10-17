@@ -1,10 +1,10 @@
 -- |
 -- Mid-level abstractions over gritty details of \"lib-pq\".
-module HighSQLPostgres.LibPQ.Connector where
+module Hasql.Postgres.LibPQ.Connector where
 
-import HighSQLPostgres.Prelude hiding (Error)
+import Hasql.Postgres.Prelude hiding (Error)
 import qualified Database.PostgreSQL.LibPQ as L
-import qualified HighSQLPostgres.Renderer as Renderer
+import qualified Hasql.Postgres.Renderer as Renderer
 
 
 data Settings =

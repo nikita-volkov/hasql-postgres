@@ -1,17 +1,17 @@
-module HighSQLPostgres where
+module Hasql.Postgres where
 
-import HighSQLPostgres.Prelude hiding (Error)
-import HighSQL.Backend
+import Hasql.Postgres.Prelude hiding (Error)
+import Hasql.Backend
 import qualified Database.PostgreSQL.LibPQ as L
 import qualified Data.Text.Encoding
 import qualified Data.ByteString as ByteString
 import qualified Data.HashTable.IO as Hashtables
-import qualified HighSQLPostgres.OID as OID
-import qualified HighSQLPostgres.Parser as Parser
-import qualified HighSQLPostgres.Renderer as Renderer
-import qualified HighSQLPostgres.Session as Session
-import qualified HighSQLPostgres.Statement as Statement
-import qualified HighSQLPostgres.LibPQ.Connector as Connector
+import qualified Hasql.Postgres.OID as OID
+import qualified Hasql.Postgres.Parser as Parser
+import qualified Hasql.Postgres.Renderer as Renderer
+import qualified Hasql.Postgres.Session as Session
+import qualified Hasql.Postgres.Statement as Statement
+import qualified Hasql.Postgres.LibPQ.Connector as Connector
 import qualified ListT
 
 
