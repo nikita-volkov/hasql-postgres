@@ -30,7 +30,12 @@ test_transaction =
   unitTestPending ""
 
 test_cursorResultsOrder =
-  unitTestPending ""
+  runSession $ do
+    r :: [Word] <-
+      read ReadCommitted $ do
+        l <- selectWithCursor [q|select oid from pg_type ORDER BY oid|]
+        ListT.toList $ fmap runIdentity l
+    liftIO $ assertEqual (sort r) r
 
 test_cursor =
   runSession $ do
