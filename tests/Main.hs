@@ -17,6 +17,21 @@ main =
   htfMain $ htf_thisModulesTests
 
 
+test_countEffects =
+  unitTestPending ""
+
+test_autoIncrement =
+  unitTestPending ""
+
+test_transactionConflictResolution =
+  unitTestPending ""
+
+test_transaction =
+  unitTestPending ""
+
+test_cursor =
+  unitTestPending ""
+
 test_mappingOfMaybe =
   runSession $ do
     validMappingSession (Just '!')
