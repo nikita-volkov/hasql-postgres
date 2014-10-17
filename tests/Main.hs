@@ -73,10 +73,12 @@ prop_mappingOfDay (v :: Day) =
   Just v === do unsafePerformIO $ runSession $ selectSelf v
 
 prop_mappingOfTimeOfDay (v :: TimeOfDay) =
-  Just v === do unsafePerformIO $ runSession $ selectSelf v
+  forAll microsTimeOfDayGen $ \v -> 
+    Just v === do unsafePerformIO $ runSession $ selectSelf v
 
-prop_mappingOfLocalTime (v :: LocalTime) =
-  Just v === do unsafePerformIO $ runSession $ selectSelf v
+prop_mappingOfLocalTime =
+  forAll microsLocalTimeGen $ \v -> 
+    Just v === do unsafePerformIO $ runSession $ selectSelf v
 
 prop_mappingOfZonedTime =
   forAll gen $ \v -> 
@@ -85,10 +87,9 @@ prop_mappingOfZonedTime =
     eq a b = zonedTimeToUTC a === zonedTimeToUTC b
     gen =
       do
-        d <- arbitrary
-        t <- timeToTimeOfDay <$> microsDiffTimeGen
+        t <- microsLocalTimeGen
         z <- minutesToTimeZone <$> choose (negate (11 * 60 + 59), 11 * 60 + 59)
-        return $ ZonedTime (LocalTime d t) z
+        return $ ZonedTime t z
 
 prop_mappingOfUTCTime =
   forAll gen $ \v ->
@@ -96,6 +97,13 @@ prop_mappingOfUTCTime =
   where
     gen = UTCTime <$> arbitrary <*> microsDiffTimeGen
 
+microsTimeOfDayGen :: Gen TimeOfDay
+microsTimeOfDayGen =
+  timeToTimeOfDay <$> microsDiffTimeGen
+
+microsLocalTimeGen :: Gen LocalTime
+microsLocalTimeGen = 
+  LocalTime <$> arbitrary <*> microsTimeOfDayGen
 
 microsDiffTimeGen :: Gen DiffTime
 microsDiffTimeGen = do
