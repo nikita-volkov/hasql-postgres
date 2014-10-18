@@ -66,16 +66,19 @@ stream r =
   do
     rows <- L.ntuples r
     cols <- L.nfields r
-    return (colToInt cols, loop (pred cols) (pred rows) (pred cols))
+    let
+      rowsLoop ri =
+        if ri < rows
+          then colsLoop 0
+          else mzero
+        where
+          colsLoop ci =
+            if ci < cols
+              then do
+                v <- lift (L.getvalue r ri ci)
+                ListT.cons v (colsLoop (succ ci))
+              else rowsLoop (succ ri)
+    return (colToInt cols, rowsLoop 0)
   where
     colToInt (L.Col n) = fromIntegral n
-    loop cnt rn cn =
-      if rn >= 0 && cn >= 0
-        then lift (L.getvalue r rn cn) >>= \v -> ListT.cons v next
-        else mzero
-      where
-        next =
-          case cn of
-            0 -> loop cnt (pred rn) cnt
-            _ -> loop cnt rn (pred cn)
 
