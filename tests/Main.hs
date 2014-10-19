@@ -11,6 +11,8 @@ import Data.Text (Text)
 import Data.Time
 import qualified Data.Text
 import qualified ListT
+import qualified SlaveThread
+import qualified Control.Concurrent.SSem as SSem
 
 
 main = 
@@ -24,7 +26,23 @@ test_autoIncrement =
   unitTestPending ""
 
 test_transactionConflictResolution =
-  unitTestPending ""
+  do
+    runSession $ withoutLocking $ do
+      modify [q|DROP TABLE IF EXISTS a|]
+      modify [q|CREATE TABLE a ("id" int8, "v" int8, PRIMARY KEY ("id"))|]
+      modify [q|INSERT INTO a (id, v) VALUES ('7', '0')|]
+    semaphore <- SSem.new (-1)
+    SlaveThread.fork $ session >> SSem.signal semaphore
+    SlaveThread.fork $ session >> SSem.signal semaphore
+    SSem.wait semaphore
+    r <- runSession $ withoutLocking $ ListT.head =<< select [q|SELECT v FROM a WHERE id='7'|]
+    assertEqual (Just (Identity (200 :: Int))) r
+  where
+    session =
+      runSession $ do
+        replicateM 100 $ write Serializable $ do
+          Just (Identity (v :: Int)) <- ListT.head =<< select [q|SELECT v FROM a WHERE id='7'|]
+          modify $ [q|UPDATE a SET v=? WHERE id='7'|] (succ v)
 
 test_transaction =
   unitTestPending ""

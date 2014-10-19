@@ -149,6 +149,9 @@ test-suite tests
     quickcheck-instances == 0.3.*,
     QuickCheck == 2.7.*,
     HUnit == 1.2.*,
+    -- concurrency:
+    SafeSemaphore == 0.10.*,
+    slave-thread == 0.1.*,
     -- data:
     old-locale == 1.0.*,
     time == 1.4.*,
