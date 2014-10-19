@@ -60,8 +60,8 @@ instance Backend Postgres where
         (throwIO . UnparsableResult (typeOf (undefined :: Integer)) r) 
         return 
         (Parser.run r Parser.integral)
-  inTransaction (isolation, write) io (Connection c) =
-    runSession c $ Session.inTransaction (sessionIsolation, write) $ liftIO io
+  beginTransaction (isolation, write) (Connection c) =
+    runSession c $ Session.beginTransaction (sessionIsolation, write)
     where
       sessionIsolation =
         case isolation of
@@ -69,6 +69,9 @@ instance Backend Postgres where
           RepeatableReads -> Statement.RepeatableRead
           ReadCommitted   -> Statement.ReadCommitted
           ReadUncommitted -> Statement.ReadCommitted
+  finishTransaction commit (Connection c) =
+    runSession c $ Session.finishTransaction commit
+
 
 runSession :: Session.Context -> Session.Session r -> IO r
 runSession c s =
@@ -87,6 +90,8 @@ runSession c s =
             "Unexpected unparsable template error. " <>
             "Template: " <> show b <> ". " <>
             "Error: " <> show t <> "."
+        Session.TransactionConflict ->
+          throwIO $ TransactionConflict
 
 hoistSessionStream :: Session.Context -> Session.Stream -> ResultsStream Postgres
 hoistSessionStream c =

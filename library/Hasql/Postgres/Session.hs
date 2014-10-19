@@ -2,6 +2,7 @@ module Hasql.Postgres.Session where
 
 import Hasql.Postgres.Prelude hiding (Error)
 import qualified Database.PostgreSQL.LibPQ as L
+import qualified Hasql.Postgres.ErrorCode as ErrorCode
 import qualified Hasql.Postgres.OID as OID
 import qualified Hasql.Postgres.Renderer as Renderer
 import qualified Hasql.Postgres.Statement as Statement
@@ -25,7 +26,8 @@ data Error =
   NotInTransaction |
   UnexpectedResult Text |
   ResultError Result.Error |
-  UnparsableTemplate ByteString Text
+  UnparsableTemplate ByteString Text |
+  TransactionConflict
   deriving (Show, Typeable)
 
 
@@ -48,7 +50,21 @@ run c s =
 
 parseResult :: Maybe L.Result -> Session Result.Success
 parseResult r =
-  ReaderT $ \(c, _, _) -> lift (Result.parse c r) >>= either (throwError . ResultError) return
+  ReaderT $ \(c, _, _) -> lift (Result.parse c r) >>= either handler return
+  where
+    handler =
+      \case
+        Result.ResultError _ c _ _ _ | elem c codes -> throwError TransactionConflict
+        e -> throwError $ ResultError e
+      where
+        codes =
+          [
+            ErrorCode.transaction_rollback,
+            ErrorCode.transaction_integrity_constraint_violation,
+            ErrorCode.serialization_failure,
+            ErrorCode.statement_completion_unknown,
+            ErrorCode.deadlock_detected
+          ]
 
 execute :: Statement.Statement -> Session Result.Success
 execute s =
@@ -125,23 +141,6 @@ finishTransaction commit =
     unitResult =<< execute (bool Statement.abortTransaction Statement.commitTransaction commit)
     (_, _, transactionStateRef) <- ask
     liftIO $ writeIORef transactionStateRef Nothing
-
-inTransaction :: Statement.TransactionMode -> Session r -> Session r
-inTransaction mode session =
-  do
-    beginTransaction mode
-    r <- 
-      catchError session $ 
-        \case
-          ResultError e@(Result.ResultError _ state _ _ _) -> do
-            finishTransaction False
-            -- inTransaction mode session
-            $bug $ "Unimplemented error handling: " <> show e
-          e -> do
-            finishTransaction False
-            throwError e
-    finishTransaction True
-    return r
 
 streamWithCursor :: Statement.Statement -> Session Stream
 streamWithCursor statement =
