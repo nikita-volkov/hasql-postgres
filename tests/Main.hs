@@ -189,4 +189,4 @@ session1 =
   session backendSettings poolSettings
   where
     backendSettings = Postgres "localhost" 5432 "postgres" "" "postgres"
-    poolSettings = fromJust $ sessionSettings 6 (30 * 10 ^ 12)
+    poolSettings = fromJust $ sessionSettings 6 30
