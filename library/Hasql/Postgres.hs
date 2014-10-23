@@ -57,7 +57,7 @@ instance Backend Postgres where
     do
       r <- runSession c $ Session.rowsAffectedResult =<< Session.execute (mkSessionStatement s)
       either 
-        (throwIO . UnparsableResult (typeOf (undefined :: Integer)) r) 
+        (throwIO . UnexpectedResult) 
         return 
         (Parser.run r Parser.integral)
   beginTransaction (isolation, write) (Connection c) =
@@ -80,9 +80,9 @@ runSession c s =
     onError =
       \case
         Session.NotInTransaction -> 
-          $bug "Unexpected NotInTransaction error"
+          throwIO $ NotInTransaction
         Session.UnexpectedResult t -> 
-          throwIO $ UnexpectedResultStructure t
+          throwIO $ UnexpectedResult t
         Session.ResultError e -> 
           $bug $ "Unexpected result error: " <> show e
         Session.UnparsableTemplate b t -> 
@@ -126,10 +126,6 @@ instance Mapping Postgres Char where
 instance Mapping Postgres Text where
   renderValue = mkRenderValue OID.text Renderer.text
   parseResult = mkParseResult Parser.utf8Text
-
-instance Mapping Postgres Integer where
-  renderValue = mkRenderValue OID.int8 Renderer.integer
-  parseResult = mkParseResult Parser.integral
 
 instance Mapping Postgres Int where
   renderValue = mkRenderValue OID.int8 Renderer.int
