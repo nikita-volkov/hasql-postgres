@@ -23,7 +23,13 @@ test_countEffects =
   unitTestPending ""
 
 test_autoIncrement =
-  unitTestPending ""
+  assertEqual (Just 1, Just 2) =<< do
+    runSession $ withoutLocking $ do
+      modify [q|DROP TABLE IF EXISTS a|]
+      modify [q|CREATE TABLE a (id SERIAL NOT NULL, v INT8, PRIMARY KEY (id))|]
+      id1 <- modifyAndGenerate [q|INSERT INTO a (v) VALUES (1) RETURNING id|]
+      id2 <- modifyAndGenerate [q|INSERT INTO a (v) VALUES (2) RETURNING id|]
+      return (id1, id2)
 
 test_transactionConflictResolution =
   do

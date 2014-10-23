@@ -127,6 +127,10 @@ instance Mapping Postgres Text where
   renderValue = mkRenderValue OID.text Renderer.text
   parseResult = mkParseResult Parser.utf8Text
 
+instance Mapping Postgres Integer where
+  renderValue = mkRenderValue OID.int8 Renderer.integer
+  parseResult = mkParseResult Parser.integral
+
 instance Mapping Postgres Int where
   renderValue = mkRenderValue OID.int8 Renderer.int
   parseResult = mkParseResult Parser.integral
