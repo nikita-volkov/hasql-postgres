@@ -9,6 +9,7 @@ import qualified Hasql.Postgres.Statement as Statement
 import qualified Hasql.Postgres.TemplateConverter as TemplateConverter
 import qualified Hasql.Postgres.LibPQ.Result as Result
 import qualified Hasql.Postgres.LibPQ.StatementPreparer as StatementPreparer
+import qualified ListT
 
 
 type Context =
@@ -144,6 +145,12 @@ streamWithCursor :: Statement.Statement -> Session Stream
 streamWithCursor statement =
   do
     cursor <- declareCursor statement
-    return $ forever $ join $ lift $ fetchFromCursor cursor
+    return $ 
+      let loop = do
+            chunk <- lift $ fetchFromCursor cursor
+            null <- lift $ ListT.null chunk
+            guard $ not null
+            chunk <> loop
+          in loop
 
 

@@ -68,7 +68,11 @@ test_cursor =
       tx (Just (ReadCommitted, False)) $ do
         ListT.toList $ stream True $
           [q|select oid, typname from pg_type|]
-    liftIO $ assertNotEqual [] r
+    r' :: [(Word, Text)] <-
+      tx (Just (ReadCommitted, False)) $ do
+        ListT.toList $ stream False $
+          [q|select oid, typname from pg_type|]
+    liftIO $ assertEqual r' r
 
 test_select =
   session1 $ do
