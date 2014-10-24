@@ -55,10 +55,9 @@ parse c =
             detail  = L.resultErrorField r L.DiagMessageDetail
             hint    = L.resultErrorField r L.DiagMessageHint
 
--- |
--- A width of a row and a stream of cells.
+
 type Stream =
-  (Int, ListT IO (Maybe ByteString))
+  ListT IO [Maybe ByteString]
 
 
 stream :: L.Result -> IO Stream
@@ -69,16 +68,16 @@ stream r =
     let
       rowsLoop ri =
         if ri < rows
-          then colsLoop 0
+          then do
+            l <- colsLoop 0
+            ListT.cons l (rowsLoop (succ ri))
           else mzero
         where
           colsLoop ci =
             if ci < cols
               then do
                 v <- lift (L.getvalue r ri ci)
-                ListT.cons v (colsLoop (succ ci))
-              else rowsLoop (succ ri)
-    return (colToInt cols, rowsLoop 0)
-  where
-    colToInt (L.Col n) = fromIntegral n
+                (v:) <$> colsLoop (succ ci)
+              else return []
+    return $ rowsLoop 0
 

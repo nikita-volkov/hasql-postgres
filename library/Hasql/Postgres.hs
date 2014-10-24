@@ -84,10 +84,9 @@ runSession c s =
         Session.UnexpectedResult t -> 
           throwIO $ UnexpectedResult t
         Session.ResultError e -> 
-          $bug $ "Unexpected result error: " <> show e
+          throwIO $ ErroneousResult $ fromString $ show e
         Session.UnparsableTemplate b t -> 
-          $bug $ 
-            "Unexpected unparsable template error. " <>
+          throwIO $ UnparsableTemplate $ fromString $
             "Template: " <> show b <> ". " <>
             "Error: " <> show t <> "."
         Session.TransactionConflict ->
@@ -95,7 +94,7 @@ runSession c s =
 
 hoistSessionStream :: Session.Context -> Session.Stream -> ResultsStream Postgres
 hoistSessionStream c =
-  fmap (ListT.traverse (return . Result) . hoist (runSession c))
+  (fmap . fmap) Result . hoist (runSession c)
 
 mkSessionStatement :: Statement Postgres -> Statement.Statement
 mkSessionStatement (template, values) =

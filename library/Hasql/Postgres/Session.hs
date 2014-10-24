@@ -37,10 +37,8 @@ data Error =
 type Session =
   ReaderT Context (ExceptT Error IO)
 
--- |
--- A width of a row and a stream of serialized values.
 type Stream =
-  (Int, ListT Session (Maybe ByteString))
+  ListT Session [Maybe ByteString]
 
 -- |
 -- Execute the session, throwing the exceptions.
@@ -102,7 +100,7 @@ unitResult =
 streamResult :: Result.Success -> Session Stream
 streamResult =
   \case
-    Result.Stream (w, l) -> return (w, hoist liftIO l)
+    Result.Stream s -> return $ hoist liftIO s
     _ -> throwError $ UnexpectedResult "Not a stream"
 
 rowsAffectedResult :: Result.Success -> Session ByteString
@@ -146,10 +144,6 @@ streamWithCursor :: Statement.Statement -> Session Stream
 streamWithCursor statement =
   do
     cursor <- declareCursor statement
-    connection <- ask
-    (w, l) <- fetchFromCursor cursor
-    let remainder =
-          forever $ join $ fmap snd $ lift $ fetchFromCursor cursor
-    return (w, l <> remainder)
+    return $ forever $ join $ lift $ fetchFromCursor cursor
 
 
