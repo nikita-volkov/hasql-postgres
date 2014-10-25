@@ -14,11 +14,29 @@ import qualified ListT
 import qualified SlaveThread
 import qualified Control.Concurrent.SSem as SSem
 import qualified Hasql.Backend as Backend
+import qualified Hasql as H
+import qualified Hasql.Postgres as H
 
 
 main = 
   htfMain $ htf_thisModulesTests
 
+
+test_rendering =
+  assertEqual (Just $ head rows) =<< do 
+    session1 $ do
+      H.tx Nothing $ do
+        H.unit [H.q|DROP TABLE IF EXISTS a|]
+        H.unit [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
+                                    name VARCHAR NOT NULL, 
+                                    birthday INT8,
+                                    PRIMARY KEY (id))|]
+        forM_ rows $ \(name, birthday) -> do
+          H.unit $ [H.q|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
+      H.tx Nothing $ do
+        H.single $ [H.q|SELECT name, birthday FROM a WHERE id = ? |] (1 :: Int)
+  where
+    rows = [("A", 34525), ("B", 324987)] :: [(Text, Int)]
 
 test_countEffects =
   unitTestPending ""
