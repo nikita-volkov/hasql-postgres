@@ -56,6 +56,7 @@ charUnit c =
   skip ((==) (fromIntegral (ord c)))
 
 -- | A signed integral value from a sequence of characters.
+{-# INLINE integral #-}
 integral :: (Integral a, Num a) => P a
 integral =
   do
@@ -66,6 +67,7 @@ integral =
       (charUnit '-' *> pure True) <|> pure False
 
 -- | An unsigned integral value from a sequence of characters.
+{-# INLINE unsignedIntegral #-}
 unsignedIntegral :: (Integral a, Num a) => P a
 unsignedIntegral =
   integralDigit >>= fold
@@ -74,6 +76,7 @@ unsignedIntegral =
       optional integralDigit >>= maybe (return a) (\b -> fold (a * 10 + b))
 
 -- | An integral value from a single character.
+{-# INLINE integralDigit #-}
 integralDigit :: Integral a => P a
 integralDigit = 
   satisfyWith (subtract 48 . fromIntegral) (\n -> n < 10 && n >= 0)
