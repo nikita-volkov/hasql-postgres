@@ -183,6 +183,7 @@ benchmark competition
   main-is:
     Main.hs
   ghc-options:
+    -O2
     -threaded
     "-with-rtsopts=-N"
     -funbox-strict-fields
