@@ -47,10 +47,10 @@ instance Backend Postgres where
   execute s (Connection c) =
     runSession c $
       Session.unitResult =<< Session.execute (mkSessionStatement s)
-  executeAndStream s (Connection c) =
+  executeAndGetMatrix s (Connection c) =
     runSession c $
-      return . (hoistSessionStream c) =<< Session.streamResult =<< Session.execute (mkSessionStatement s)
-  executeAndStreamWithCursor s (Connection c) =
+      unsafeCoerce $ Session.matrixResult =<< Session.execute (mkSessionStatement s)
+  executeAndStream s (Connection c) =
     runSession c $
       return . (hoistSessionStream c) =<< Session.streamWithCursor (mkSessionStatement s)
   executeAndCountEffects s (Connection c) =
@@ -93,9 +93,9 @@ runSession c s =
           throwIO $ TransactionConflict
 
 {-# INLINE hoistSessionStream #-}
-hoistSessionStream :: Session.Context -> Session.Stream -> ResultsStream Postgres
+hoistSessionStream :: Session.Context -> Session.Stream -> Stream Postgres
 hoistSessionStream c =
-  (fmap . fmap) Result . hoist (runSession c)
+  unsafeCoerce . hoist (runSession c)
 
 mkSessionStatement :: Statement Postgres -> Statement.Statement
 mkSessionStatement (template, values) =

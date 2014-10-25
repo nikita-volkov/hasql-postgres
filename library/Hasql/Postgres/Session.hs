@@ -10,6 +10,7 @@ import qualified Hasql.Postgres.TemplateConverter as TemplateConverter
 import qualified Hasql.Postgres.LibPQ.Result as Result
 import qualified Hasql.Postgres.LibPQ.StatementPreparer as StatementPreparer
 import qualified ListT
+import qualified Data.Vector as Vector
 
 
 type Context =
@@ -100,12 +101,12 @@ unitResult =
     Result.CommandOK _ -> return ()
     _ -> throwError $ UnexpectedResult "Not a unit"
 
-{-# INLINE streamResult #-}
-streamResult :: Result.Success -> Session Stream
-streamResult =
+{-# INLINE matrixResult #-}
+matrixResult :: Result.Success -> Session Result.Matrix
+matrixResult =
   \case
-    Result.Stream s -> return $ hoist liftIO s
-    _ -> throwError $ UnexpectedResult "Not a stream"
+    Result.Matrix a -> return a
+    _ -> throwError $ UnexpectedResult "Not a matrix"
 
 {-# INLINE rowsAffectedResult #-}
 rowsAffectedResult :: Result.Success -> Session ByteString
@@ -127,9 +128,9 @@ closeCursor :: Statement.Cursor -> Session ()
 closeCursor cursor =
   unitResult =<< execute (Statement.closeCursor cursor)
 
-fetchFromCursor :: Statement.Cursor -> Session Stream
+fetchFromCursor :: Statement.Cursor -> Session Result.Matrix
 fetchFromCursor cursor =
-  streamResult =<< execute (Statement.fetchFromCursor cursor)
+  matrixResult =<< execute (Statement.fetchFromCursor cursor)
 
 beginTransaction :: Statement.TransactionMode -> Session ()
 beginTransaction mode =
@@ -152,9 +153,9 @@ streamWithCursor statement =
     return $ 
       let loop = do
             chunk <- lift $ fetchFromCursor cursor
-            null <- lift $ ListT.null chunk
-            guard $ not null
-            chunk <> loop
+            guard $ not $ Vector.null chunk
+            -- traverse_ pure chunk <> loop
+            undefined
           in loop
 
 

@@ -204,6 +204,7 @@ benchmark competition
     -- benchmarking:
     criterion-plus == 0.1.*,
     -- data:
+    vector == 0.10.*,
     time == 1.4.*,
     text == 1.1.*,
     scientific == 0.3.*,

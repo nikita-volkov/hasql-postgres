@@ -25,7 +25,7 @@ data ResultErrorStatus =
 
 data Success =
   CommandOK !(Maybe ByteString) |
-  Stream !Stream
+  Matrix !Matrix
 
 
 parse :: L.Connection -> Maybe L.Result -> IO (Either Error Success)
@@ -39,7 +39,7 @@ parse c =
           L.CommandOk ->
             Right . CommandOK <$> L.cmdTuples r
           L.TuplesOk ->
-            Right . Stream <$> stream r
+            Right . Matrix <$> getMatrix r
           L.BadResponse ->
             Left <$> statusError BadResponse
           L.NonfatalError ->
@@ -61,9 +61,8 @@ parse c =
 type Stream =
   ListT IO (Vector (Maybe ByteString))
 
-
-stream :: L.Result -> IO Stream
-stream r =
+getStream :: L.Result -> IO Stream
+getStream r =
   do
     rows <- L.ntuples r
     cols <- L.nfields r
@@ -74,14 +73,34 @@ stream r =
             then do 
               row <- 
                 liftIO $ do
-                  mv <- MVector.new (colToInt cols)
-                  forM [0..pred cols] $ \ci ->
-                    MVector.write mv (colToInt ci) =<< L.getvalue r ri ci
+                  mv <- MVector.new (colInt cols)
+                  forM_ [0..pred cols] $ \ci ->
+                    MVector.write mv (colInt ci) =<< L.getvalue r ri ci
                   Vector.unsafeFreeze mv
               ListT.cons row (loop (succ ri))
             else mzero
         in 
           loop 0
   where
-    colToInt (L.Col n) = fromIntegral n
+    colInt (L.Col n) = fromIntegral n
 
+
+type Matrix =
+  Vector (Vector (Maybe ByteString))
+
+getMatrix :: L.Result -> IO Matrix
+getMatrix r =
+  do
+    nr <- L.ntuples r
+    nc <- L.nfields r
+    mvx <- MVector.new (rowInt nr)
+    forM_ [0..pred nr] $ \ir -> do
+      mvy <- MVector.new (colInt nc)
+      forM_ [0..pred nc] $ \ic -> do
+        MVector.write mvy (colInt ic) =<< L.getvalue r ir ic
+      vy <- Vector.unsafeFreeze mvy
+      MVector.write mvx (rowInt ir) vy
+    Vector.unsafeFreeze mvx
+  where
+    colInt (L.Col n) = fromIntegral n
+    rowInt (L.Row n) = fromIntegral n

@@ -1,6 +1,7 @@
 import BasePrelude
 import MTLPrelude
 import Data.Text (Text)
+import Data.Vector (Vector)
 import Data.Time
 import CriterionPlus
 import qualified Hasql as H
@@ -41,12 +42,12 @@ main =
           lift $ continue
           forM_ transfers $ \(id1, id2) -> do
             H.tx (Just (H.Serializable, True)) $ do
-              ListT.head $ do
+              runMaybeT $ do
                 do
-                  Identity balance <- H.stream False $ [H.q|SELECT balance FROM a WHERE id=?|] id1
+                  Identity balance <- MaybeT $ H.single $ [H.q|SELECT balance FROM a WHERE id=?|] id1
                   lift $ H.unit $ [H.q|UPDATE a SET balance=? WHERE id=?|] (balance - amount) id1
                 do
-                  Identity balance <- H.stream False $ [H.q|SELECT balance FROM a WHERE id=?|] id2
+                  Identity balance <- MaybeT $ H.single $ [H.q|SELECT balance FROM a WHERE id=?|] id2
                   lift $ H.unit $ [H.q|UPDATE a SET balance=? WHERE id=?|] (balance + amount) id2
           lift $ pause
 
@@ -90,7 +91,7 @@ main =
           lift $ continue
           replicateM_ 100 $ do
             H.tx Nothing $ do
-              ListT.toList $ H.stream False $ [H.q|SELECT * FROM a|] :: H.Tx H.Postgres s [(Int, Text, Day)]
+              H.vector $ [H.q|SELECT * FROM a|] :: H.Tx H.Postgres s (Vector (Int, Text, Day))
           lift $ pause
 
       subject "postgresql-simple" $ do
