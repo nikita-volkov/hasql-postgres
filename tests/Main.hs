@@ -42,13 +42,13 @@ test_transactionConflictResolution =
     SlaveThread.fork $ session >> SSem.signal semaphore
     SlaveThread.fork $ session >> SSem.signal semaphore
     SSem.wait semaphore
-    r <- session1 $ tx Nothing $ ListT.head $ stream False [q|SELECT v FROM a WHERE id='7'|]
+    r <- session1 $ tx Nothing $ single [q|SELECT v FROM a WHERE id='7'|]
     assertEqual (Just (Identity (200 :: Int))) r
   where
     session =
       session1 $ do
         replicateM 100 $ tx (Just (Serializable, True)) $ do
-          Just (Identity (v :: Int)) <- ListT.head $ stream False [q|SELECT v FROM a WHERE id='7'|]
+          Just (Identity (v :: Int)) <- single [q|SELECT v FROM a WHERE id='7'|]
           unit $ [q|UPDATE a SET v=? WHERE id='7'|] (succ v)
 
 test_transaction =
@@ -58,7 +58,7 @@ test_cursorResultsOrder =
   session1 $ do
     r :: [Word] <-
       tx (Just (ReadCommitted, False)) $ do
-        ListT.toList $ fmap runIdentity $ stream True $ 
+        ListT.toList $ fmap runIdentity $ stream $ 
           [q|select oid from pg_type ORDER BY oid|]
     liftIO $ assertEqual (sort r) r
 
@@ -66,20 +66,18 @@ test_cursor =
   session1 $ do
     r :: [(Word, Text)] <-
       tx (Just (ReadCommitted, False)) $ do
-        ListT.toList $ stream True $
+        ListT.toList $ stream $
           [q|select oid, typname from pg_type|]
     r' :: [(Word, Text)] <-
       tx (Just (ReadCommitted, False)) $ do
-        ListT.toList $ stream False $
-          [q|select oid, typname from pg_type|]
+        list $ [q|select oid, typname from pg_type|]
     liftIO $ assertEqual r' r
 
 test_select =
   session1 $ do
     r :: [(Word, Text)] <-
       tx Nothing $ do
-        ListT.toList $ stream False $
-          [q|select oid, typname from pg_type|]
+        list $ [q|select oid, typname from pg_type|]
     liftIO $ assertNotEqual [] r
 
 test_mappingOfMaybe =
@@ -180,7 +178,7 @@ selectSelf ::
   Backend.Mapping Postgres a => Typeable a => 
   a -> Session Postgres IO (Maybe a)
 selectSelf v =
-  tx Nothing $ ListT.head $ fmap runIdentity $ stream False $ [q| SELECT ? |] v
+  tx Nothing $ (fmap . fmap) runIdentity $ single $ [q| SELECT ? |] v
 
 validMappingSession :: 
   Backend.Mapping Postgres a => Typeable a => Show a => Eq a => 

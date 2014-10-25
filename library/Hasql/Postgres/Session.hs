@@ -153,8 +153,9 @@ streamWithCursor statement =
     return $ 
       let loop = do
             chunk <- lift $ fetchFromCursor cursor
-            guard $ not $ null chunk
-            mconcat (map pure chunk) <> loop
+            guard $ not $ Vector.null chunk
+            Vector.foldl step mempty chunk <> loop
+          step z r = z <> pure r
           in loop
 
 
