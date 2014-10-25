@@ -45,12 +45,15 @@ instance Backend Postgres where
   disconnect (Connection (c, _, _)) =
     L.finish c
   execute s (Connection c) =
+    {-# SCC "execute" #-} 
     runSession c $
       Session.unitResult =<< Session.execute (mkSessionStatement s)
   executeAndGetMatrix s (Connection c) =
+    {-# SCC "executeAndGetMatrix" #-} 
     runSession c $
       unsafeCoerce $ Session.matrixResult =<< Session.execute (mkSessionStatement s)
   executeAndStream s (Connection c) =
+    {-# SCC "executeAndStream" #-} 
     runSession c $
       return . (hoistSessionStream c) =<< Session.streamWithCursor (mkSessionStatement s)
   executeAndCountEffects s (Connection c) =
@@ -75,6 +78,7 @@ instance Backend Postgres where
 
 runSession :: Session.Context -> Session.Session r -> IO r
 runSession c s =
+  {-# SCC runSession #-} 
   Session.run c s >>= either onError return
   where
     onError =
@@ -95,6 +99,7 @@ runSession c s =
 {-# INLINE hoistSessionStream #-}
 hoistSessionStream :: Session.Context -> Session.Stream -> Stream Postgres
 hoistSessionStream c =
+  {-# SCC hoistSessionStream #-} 
   unsafeCoerce . hoist (runSession c)
 
 mkSessionStatement :: Statement Postgres -> Statement.Statement

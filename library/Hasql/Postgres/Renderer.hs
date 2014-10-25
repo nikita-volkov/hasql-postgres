@@ -16,6 +16,7 @@ type R a =
 
 run :: a -> R a -> ByteString
 run a f =
+  {-# SCC run #-} 
   (L.toStrict . B.toLazyByteString . f) a
 
 

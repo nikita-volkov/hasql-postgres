@@ -38,6 +38,7 @@ new connection =
 
 prepare :: ByteString -> [LibPQ.Oid] -> StatementPreparer -> ExceptT LibPQ.Result.Error IO RemoteKey
 prepare s tl (c, counter, table) =
+  {-# SCC prepare #-} 
   do
     let k = LocalKey s tl
     r <- liftIO $ Hashtables.lookup table k

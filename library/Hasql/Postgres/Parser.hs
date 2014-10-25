@@ -14,6 +14,7 @@ type P = Parser
 
 run :: ByteString -> P a -> Either Text a
 run input parser =
+  {-# SCC run #-} 
   left fromString $ parseOnly (parser <* endOfInput) input
 
 
@@ -66,6 +67,7 @@ integral =
 {-# INLINE unsignedIntegral #-}
 unsignedIntegral :: (Integral a, Num a) => P a
 unsignedIntegral =
+  {-# SCC "unsignedIntegral" #-} 
   decimal
 
 -- | An integral value from a single character.
@@ -76,6 +78,7 @@ integralDigit =
 
 day :: P Day
 day =
+  {-# SCC day #-} 
   do
     y <- unsignedIntegral
     charUnit '-'

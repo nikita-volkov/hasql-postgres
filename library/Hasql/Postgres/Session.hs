@@ -51,6 +51,7 @@ run c s =
 
 parseResult :: Maybe L.Result -> Session Result.Success
 parseResult r =
+  {-# SCC "parseResult" #-} 
   ReaderT $ \(c, _, _) -> lift (Result.parse c r) >>= either handler return
   where
     handler =

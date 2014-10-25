@@ -63,6 +63,7 @@ type Stream =
 
 getStream :: L.Result -> IO Stream
 getStream r =
+  {-# SCC "getStream" #-} 
   do
     rows <- L.ntuples r
     cols <- L.nfields r
@@ -90,6 +91,7 @@ type Matrix =
 
 getMatrix :: L.Result -> IO Matrix
 getMatrix r =
+  {-# SCC "getMatrix" #-} 
   do
     nr <- L.ntuples r
     nc <- L.nfields r
