@@ -48,7 +48,8 @@ open s =
     lift $ L.exec c $ mconcat $ map (<> ";") $ 
       [ "SET standard_conforming_strings TO on",
         "SET datestyle TO ISO",
-        "SET client_encoding = 'UTF8'" ]
+        "SET client_encoding = 'UTF8'",
+        "SET client_min_messages TO WARNING" ]
     return c
 
 

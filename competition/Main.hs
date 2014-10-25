@@ -53,6 +53,7 @@ main =
       subject "postgresql-simple" $ do
         pause
         c <- liftIO $ P.connect $ P.ConnectInfo host port user password db
+        liftIO $ P.execute_ c "SET client_min_messages TO WARNING"
         liftIO $ P.execute_ c "DROP TABLE IF EXISTS a"
         liftIO $ P.execute_ c "CREATE TABLE a (id SERIAL NOT NULL, balance INT8, PRIMARY KEY (id))"
         replicateM_ users $ do
@@ -95,6 +96,7 @@ main =
       subject "postgresql-simple" $ do
         pause
         c <- liftIO $ P.connect $ P.ConnectInfo host port user password db
+        liftIO $ P.execute_ c "SET client_min_messages TO WARNING"
         liftIO $ P.execute_ c "DROP TABLE IF EXISTS a"
         liftIO $ P.execute_ c [P.sql|CREATE TABLE a (id SERIAL NOT NULL, 
                                                      name VARCHAR NOT NULL, 
