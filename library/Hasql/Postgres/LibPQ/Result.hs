@@ -65,19 +65,13 @@ stream r =
   do
     rows <- L.ntuples r
     cols <- L.nfields r
-    let
-      rowsLoop ri =
-        if ri < rows
-          then do
-            l <- colsLoop 0
-            ListT.cons l (rowsLoop (succ ri))
-          else mzero
-        where
-          colsLoop ci =
-            if ci < cols
-              then do
-                v <- lift (L.getvalue r ri ci)
-                (v:) <$> colsLoop (succ ci)
-              else return []
-    return $ rowsLoop 0
+    return $ 
+      let
+        loop ri = 
+          do
+            guard $ ri < rows
+            l <- lift $ forM [0..pred cols] $ \ci -> L.getvalue r ri ci
+            ListT.cons l (loop (succ ri))
+        in 
+          loop 0
 
