@@ -91,7 +91,7 @@ main =
           lift $ continue
           replicateM_ 100 $ do
             H.tx Nothing $ do
-              H.vector $ [H.q|SELECT * FROM a|] :: H.Tx H.Postgres s (Vector (Int, Text, Day))
+              H.list $ [H.q|SELECT * FROM a|] :: H.Tx H.Postgres s [(Int, Text, Day)]
           lift $ pause
 
       subject "postgresql-simple" $ do

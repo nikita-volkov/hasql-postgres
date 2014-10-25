@@ -153,9 +153,8 @@ streamWithCursor statement =
     return $ 
       let loop = do
             chunk <- lift $ fetchFromCursor cursor
-            guard $ not $ Vector.null chunk
-            -- traverse_ pure chunk <> loop
-            undefined
+            guard $ not $ null chunk
+            mconcat (map pure chunk) <> loop
           in loop
 
 

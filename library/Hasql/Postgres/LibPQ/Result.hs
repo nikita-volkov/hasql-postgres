@@ -86,21 +86,18 @@ getStream r =
 
 
 type Matrix =
-  Vector (Vector (Maybe ByteString))
+  [Vector (Maybe ByteString)]
 
 getMatrix :: L.Result -> IO Matrix
 getMatrix r =
   do
     nr <- L.ntuples r
     nc <- L.nfields r
-    mvx <- MVector.new (rowInt nr)
-    forM_ [0..pred nr] $ \ir -> do
+    forM [0..pred nr] $ \ir -> do
       mvy <- MVector.new (colInt nc)
       forM_ [0..pred nc] $ \ic -> do
         MVector.write mvy (colInt ic) =<< L.getvalue r ir ic
-      vy <- Vector.unsafeFreeze mvy
-      MVector.write mvx (rowInt ir) vy
-    Vector.unsafeFreeze mvx
+      Vector.unsafeFreeze mvy
   where
     colInt (L.Col n) = fromIntegral n
     rowInt (L.Row n) = fromIntegral n
