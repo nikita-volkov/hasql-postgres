@@ -92,6 +92,7 @@ runSession c s =
         Session.TransactionConflict ->
           throwIO $ TransactionConflict
 
+{-# INLINE hoistSessionStream #-}
 hoistSessionStream :: Session.Context -> Session.Stream -> ResultsStream Postgres
 hoistSessionStream c =
   (fmap . fmap) Result . hoist (runSession c)

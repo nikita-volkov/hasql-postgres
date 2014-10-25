@@ -43,6 +43,7 @@ type Stream =
 
 -- |
 -- Execute the session, throwing the exceptions.
+{-# INLINE run #-}
 run :: Context -> Session r -> IO (Either Error r)
 run c s =
   runExceptT $ runReaderT s c
@@ -92,18 +93,21 @@ nextName =
     liftIO $ writeIORef transactionStateRef (Just $ succ nameCounter)
     return $ Renderer.run nameCounter $ \n -> Renderer.char 'v' <> Renderer.word n
 
+{-# INLINE unitResult #-}
 unitResult :: Result.Success -> Session ()
 unitResult =
   \case
     Result.CommandOK _ -> return ()
     _ -> throwError $ UnexpectedResult "Not a unit"
 
+{-# INLINE streamResult #-}
 streamResult :: Result.Success -> Session Stream
 streamResult =
   \case
     Result.Stream s -> return $ hoist liftIO s
     _ -> throwError $ UnexpectedResult "Not a stream"
 
+{-# INLINE rowsAffectedResult #-}
 rowsAffectedResult :: Result.Success -> Session ByteString
 rowsAffectedResult =
   \case
