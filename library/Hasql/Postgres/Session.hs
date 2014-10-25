@@ -39,7 +39,7 @@ type Session =
   ReaderT Context (ExceptT Error IO)
 
 type Stream =
-  ListT Session [Maybe ByteString]
+  ListT Session (Vector (Maybe ByteString))
 
 -- |
 -- Execute the session, throwing the exceptions.

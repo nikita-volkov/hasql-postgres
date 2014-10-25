@@ -52,6 +52,10 @@ import Data.Time as Exports
 -------------------------
 import System.Locale as Exports
 
+-- vector
+-------------------------
+import Data.Vector as Exports (Vector)
+
 -- placeholders
 -------------------------
 import Development.Placeholders as Exports

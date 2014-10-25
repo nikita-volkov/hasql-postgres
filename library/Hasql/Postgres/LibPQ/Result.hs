@@ -3,6 +3,8 @@ module Hasql.Postgres.LibPQ.Result where
 import Hasql.Postgres.Prelude hiding (Error)
 import qualified Database.PostgreSQL.LibPQ as L
 import qualified ListT
+import qualified Data.Vector as Vector
+import qualified Data.Vector.Mutable as MVector
 
 
 -- |
@@ -57,7 +59,7 @@ parse c =
 
 
 type Stream =
-  ListT IO [Maybe ByteString]
+  ListT IO (Vector (Maybe ByteString))
 
 
 stream :: L.Result -> IO Stream
@@ -70,9 +72,16 @@ stream r =
         loop ri = 
           if ri < rows
             then do 
-              l <- lift $ forM [0..pred cols] $ \ci -> L.getvalue r ri ci
-              ListT.cons l (loop (succ ri))
+              row <- 
+                liftIO $ do
+                  mv <- MVector.new (colToInt cols)
+                  forM [0..pred cols] $ \ci ->
+                    MVector.write mv (colToInt ci) =<< L.getvalue r ri ci
+                  Vector.unsafeFreeze mv
+              ListT.cons row (loop (succ ri))
             else mzero
         in 
           loop 0
+  where
+    colToInt (L.Col n) = fromIntegral n
 
