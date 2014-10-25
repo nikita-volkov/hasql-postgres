@@ -68,10 +68,11 @@ stream r =
     return $ 
       let
         loop ri = 
-          do
-            guard $ ri < rows
-            l <- lift $ forM [0..pred cols] $ \ci -> L.getvalue r ri ci
-            ListT.cons l (loop (succ ri))
+          if ri < rows
+            then do 
+              l <- lift $ forM [0..pred cols] $ \ci -> L.getvalue r ri ci
+              ListT.cons l (loop (succ ri))
+            else mzero
         in 
           loop 0
 
