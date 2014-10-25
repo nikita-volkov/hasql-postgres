@@ -2,6 +2,7 @@ module Hasql.Postgres.Parser where
 
 import Hasql.Postgres.Prelude hiding (take)
 import Data.Attoparsec.ByteString
+import Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString
 import qualified Data.Text
 import qualified Data.Text.Encoding
@@ -59,21 +60,13 @@ charUnit c =
 {-# INLINE integral #-}
 integral :: (Integral a, Num a) => P a
 integral =
-  do
-    n <- negative
-    unsignedIntegral >>= return . if n then negate else id
-  where
-    negative = 
-      (charUnit '-' *> pure True) <|> pure False
-
+  signed decimal
+  
 -- | An unsigned integral value from a sequence of characters.
 {-# INLINE unsignedIntegral #-}
 unsignedIntegral :: (Integral a, Num a) => P a
 unsignedIntegral =
-  integralDigit >>= fold
-  where
-    fold a = 
-      optional integralDigit >>= maybe (return a) (\b -> fold (a * 10 + b))
+  decimal
 
 -- | An integral value from a single character.
 {-# INLINE integralDigit #-}
