@@ -50,14 +50,11 @@ library
     Hasql.Postgres.OID
     Hasql.Postgres.Statement
     Hasql.Postgres.Parser
-    Hasql.Postgres.Session
     Hasql.Postgres.TemplateConverter
     Hasql.Postgres.TemplateConverter.Parser
     Hasql.Postgres.LibPQ.Connector
     Hasql.Postgres.LibPQ.Result
-    Hasql.Postgres.LibPQ.StatementPreparer
   exposed-modules:
-    Hasql.Postgres
   build-depends:
     -- parsers:
     attoparsec == 0.12.*,
