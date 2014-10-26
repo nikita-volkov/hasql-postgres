@@ -50,6 +50,7 @@ library
     Hasql.Postgres.OID
     Hasql.Postgres.Statement
     Hasql.Postgres.Parser
+    Hasql.Postgres.StatementPreparer
     Hasql.Postgres.TemplateConverter
     Hasql.Postgres.TemplateConverter.Parser
     Hasql.Postgres.ResultHandler
