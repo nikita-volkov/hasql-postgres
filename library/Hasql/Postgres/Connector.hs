@@ -1,6 +1,6 @@
 -- |
 -- Mid-level abstractions over gritty details of \"lib-pq\".
-module Hasql.Postgres.LibPQ.Connector where
+module Hasql.Postgres.Connector where
 
 import Hasql.Postgres.Prelude hiding (Error)
 import qualified Database.PostgreSQL.LibPQ as L

@@ -3,8 +3,8 @@ module Hasql.Postgres (Postgres(..)) where
 import Hasql.Postgres.Prelude
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Hasql.Backend as Backend
-import qualified Hasql.Postgres.LibPQ.Connector as Connector
-import qualified Hasql.Postgres.LibPQ.Result as ResultParser
+import qualified Hasql.Postgres.Connector as Connector
+import qualified Hasql.Postgres.ResultParser as ResultParser
 import qualified Hasql.Postgres.ResultHandler as ResultHandler
 import qualified Hasql.Postgres.Statement as Statement
 import qualified Hasql.Postgres.StatementPreparer as StatementPreparer

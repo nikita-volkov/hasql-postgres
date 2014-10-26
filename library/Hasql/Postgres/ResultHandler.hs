@@ -4,7 +4,7 @@ module Hasql.Postgres.ResultHandler where
 
 import Hasql.Postgres.Prelude
 import qualified Hasql.Backend as Backend
-import qualified Hasql.Postgres.LibPQ.Result as Result
+import qualified Hasql.Postgres.ResultParser as Result
 import qualified Hasql.Postgres.ErrorCode as ErrorCode
 
 

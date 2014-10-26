@@ -54,8 +54,8 @@ library
     Hasql.Postgres.TemplateConverter
     Hasql.Postgres.TemplateConverter.Parser
     Hasql.Postgres.ResultHandler
-    Hasql.Postgres.LibPQ.Connector
-    Hasql.Postgres.LibPQ.Result
+    Hasql.Postgres.Connector
+    Hasql.Postgres.ResultParser
   exposed-modules:
     Hasql.Postgres
   build-depends:

@@ -6,7 +6,7 @@ import Hasql.Postgres.Prelude
 import qualified Data.HashTable.IO as Hashtables
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Hasql.Postgres.Renderer as Renderer
-import qualified Hasql.Postgres.LibPQ.Result as Result
+import qualified Hasql.Postgres.ResultParser as Result
 import qualified Hasql.Postgres.ResultHandler as ResultHandler
 
 

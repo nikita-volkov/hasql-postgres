@@ -1,4 +1,4 @@
-module Hasql.Postgres.LibPQ.Result
+module Hasql.Postgres.ResultParser
 ( 
   Result(..), 
   StatusErrorStatus(..),
