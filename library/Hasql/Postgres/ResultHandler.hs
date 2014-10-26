@@ -18,6 +18,13 @@ unit =
     Result.CommandOK _ -> Right $ return ()
     _ -> Left "Not a unit"
 
+{-# INLINE rowsStream #-}
+rowsStream :: ResultHandler Result.RowsStream
+rowsStream =
+  resultHandler $ \case
+    Result.Rows s _ _ -> Right s
+    _ -> Left "Not a rows result"
+
 {-# INLINE rowsVector #-}
 rowsVector :: ResultHandler Result.RowsVector
 rowsVector =
@@ -25,11 +32,11 @@ rowsVector =
     Result.Rows _ v _ -> Right v
     _ -> Left "Not a rows result"
 
-{-# INLINE rowsStream #-}
-rowsStream :: ResultHandler Result.RowsStream
-rowsStream =
+{-# INLINE rowsList #-}
+rowsList :: ResultHandler Result.RowsList
+rowsList =
   resultHandler $ \case
-    Result.Rows s _ _ -> Right s
+    Result.Rows _ _ l -> Right l
     _ -> Left "Not a rows result"
 
 {-# INLINE rowsAffected #-}
