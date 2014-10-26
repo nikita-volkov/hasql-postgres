@@ -57,6 +57,7 @@ library
     Hasql.Postgres.LibPQ.Connector
     Hasql.Postgres.LibPQ.Result
   exposed-modules:
+    Hasql.Postgres
   build-depends:
     -- parsers:
     attoparsec == 0.12.*,
