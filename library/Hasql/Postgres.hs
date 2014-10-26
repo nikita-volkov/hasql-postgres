@@ -13,6 +13,7 @@ import qualified Hasql.Postgres.Parser as Parser
 import qualified Hasql.Postgres.Renderer as Renderer
 import qualified Hasql.Postgres.OID as OID
 import qualified Data.Text.Encoding as Text
+import qualified ListT
 
 
 -- |
@@ -55,7 +56,31 @@ instance Backend.Backend Postgres where
   executeAndGetMatrix s c =
     unsafeCoerce . ResultHandler.rowsVector =<< execute (liftStatement s) c
   executeAndStream s c =
-    undefined
+    do
+      name <- declareCursor
+      return $ unsafeCoerce $
+        let loop = do
+              chunk <- lift $ fetchFromCursor name
+              null <- lift $ ListT.null chunk
+              guard $ not null
+              chunk <> loop
+            in loop
+    where
+      nextName = 
+        do
+          counterM <- readIORef (transactionState c)
+          counter <- maybe (throwIO Backend.NotInTransaction) return counterM
+          writeIORef (transactionState c) (Just (succ counter))
+          return $ Renderer.run counter $ \n -> Renderer.char 'v' <> Renderer.word n
+      declareCursor =
+        do
+          name <- nextName
+          ResultHandler.unit =<< execute (Statement.declareCursor name (liftStatement s)) c
+          return name
+      fetchFromCursor name =
+        ResultHandler.rowsStream =<< execute (Statement.fetchFromCursor name) c
+      closeCursor name =
+        ResultHandler.unit =<< execute (Statement.closeCursor name) c
   executeAndCountEffects s c =
     do
       b <- ResultHandler.rowsAffected =<< execute (liftStatement s) c

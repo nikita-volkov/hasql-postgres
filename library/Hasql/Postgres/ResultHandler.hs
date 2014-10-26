@@ -25,6 +25,13 @@ rowsVector =
     Result.Rows _ v _ -> Right v
     _ -> Left "Not a rows result"
 
+{-# INLINE rowsStream #-}
+rowsStream :: ResultHandler Result.RowsStream
+rowsStream =
+  resultHandler $ \case
+    Result.Rows s _ _ -> Right s
+    _ -> Left "Not a rows result"
+
 {-# INLINE rowsAffected #-}
 rowsAffected :: ResultHandler ByteString
 rowsAffected =
