@@ -1,20 +1,23 @@
-module Hasql.Postgres where
+module Hasql.Postgres (Postgres(..)) where
 
-import Hasql.Postgres.Prelude hiding (Error)
-import Hasql.Backend
-import qualified Database.PostgreSQL.LibPQ as L
-import qualified Data.Text.Encoding
-import qualified Data.ByteString as ByteString
-import qualified Data.HashTable.IO as Hashtables
-import qualified Hasql.Postgres.OID as OID
+import Hasql.Postgres.Prelude
+import qualified Database.PostgreSQL.LibPQ as PQ
+import qualified Hasql.Backend as Backend
+import qualified Hasql.Postgres.LibPQ.Connector as Connector
+import qualified Hasql.Postgres.LibPQ.Result as ResultParser
+import qualified Hasql.Postgres.ResultHandler as ResultHandler
+import qualified Hasql.Postgres.Statement as Statement
+import qualified Hasql.Postgres.StatementPreparer as StatementPreparer
+import qualified Hasql.Postgres.TemplateConverter as TemplateConverter
 import qualified Hasql.Postgres.Parser as Parser
 import qualified Hasql.Postgres.Renderer as Renderer
-import qualified Hasql.Postgres.Session as Session
-import qualified Hasql.Postgres.Statement as Statement
-import qualified Hasql.Postgres.LibPQ.Connector as Connector
+import qualified Hasql.Postgres.OID as OID
+import qualified Data.Text.Encoding as Text
 import qualified ListT
 
 
+-- |
+-- Settings of a Postgres backend.
 data Postgres =
   Postgres {
     host :: ByteString,
@@ -24,171 +27,196 @@ data Postgres =
     database :: Text
   }
 
-instance Backend Postgres where
+instance Backend.Backend Postgres where
   newtype StatementArgument Postgres = 
-    StatementArgument {unpackStatementArgument :: (L.Oid, Maybe (ByteString, L.Format))}
+    StatementArgument {unpackStatementArgument :: (PQ.Oid, Maybe (ByteString, PQ.Format))}
   newtype Result Postgres = 
     Result {unpackResult :: (Maybe ByteString)}
-  newtype Connection Postgres = 
-    Connection Session.Context
+  data Connection Postgres = 
+    Connection {
+      connection :: !PQ.Connection, 
+      preparer :: !StatementPreparer.StatementPreparer,
+      transactionState :: !(IORef (Maybe Word))
+    }
   connect p =
     do
       r <- runExceptT $ Connector.open settings
       case r of
         Left e -> 
-          throwIO $ CantConnect $ fromString $ show e
+          throwIO $ Backend.CantConnect $ fromString $ show e
         Right c ->
-          Connection <$> Session.newContext c
+          Connection <$> pure c <*> StatementPreparer.new c <*> newIORef Nothing
     where
       settings =
         Connector.Settings (host p) (port p) (user p) (password p) (database p)
-  disconnect (Connection (c, _, _)) =
-    L.finish c
-  execute s (Connection c) =
-    {-# SCC "execute" #-} 
-    runSession c $
-      Session.unitResult =<< Session.execute (mkSessionStatement s)
-  executeAndGetMatrix s (Connection c) =
-    {-# SCC "executeAndGetMatrix" #-} 
-    runSession c $
-      unsafeCoerce $ Session.matrixResult =<< Session.execute (mkSessionStatement s)
-  executeAndStream s (Connection c) =
-    {-# SCC "executeAndStream" #-} 
-    runSession c $
-      return . (hoistSessionStream c) =<< Session.streamWithCursor (mkSessionStatement s)
-  executeAndCountEffects s (Connection c) =
+  disconnect c =
+    PQ.finish (connection c)
+  execute s c = 
+    ResultHandler.unit =<< execute (liftStatement s) c
+  executeAndGetMatrix s c =
+    unsafeCoerce . ResultHandler.rowsVector =<< execute (liftStatement s) c
+  executeAndStream s c =
     do
-      r <- runSession c $ Session.rowsAffectedResult =<< Session.execute (mkSessionStatement s)
-      either 
-        (throwIO . UnexpectedResult) 
-        return 
-        (Parser.run r Parser.integral)
-  beginTransaction (isolation, write) (Connection c) =
-    runSession c $ Session.beginTransaction (sessionIsolation, write)
+      name <- declareCursor
+      return $ unsafeCoerce $
+        let loop = do
+              chunk <- lift $ fetchFromCursor name
+              null <- lift $ ListT.null chunk
+              guard $ not null
+              chunk <> loop
+            in loop
     where
-      sessionIsolation =
+      nextName = 
+        do
+          counterM <- readIORef (transactionState c)
+          counter <- maybe (throwIO Backend.NotInTransaction) return counterM
+          writeIORef (transactionState c) (Just (succ counter))
+          return $ Renderer.run counter $ \n -> Renderer.char 'v' <> Renderer.word n
+      declareCursor =
+        do
+          name <- nextName
+          ResultHandler.unit =<< execute (Statement.declareCursor name (liftStatement s)) c
+          return name
+      fetchFromCursor name =
+        ResultHandler.rowsStream =<< execute (Statement.fetchFromCursor name) c
+      closeCursor name =
+        ResultHandler.unit =<< execute (Statement.closeCursor name) c
+  executeAndCountEffects s c =
+    do
+      b <- ResultHandler.rowsAffected =<< execute (liftStatement s) c
+      case Parser.run b Parser.unsignedIntegral of
+        Left m -> 
+          throwIO $ Backend.UnexpectedResult m
+        Right r ->
+          return r
+  beginTransaction (isolation, write) c = 
+    do
+      writeIORef (transactionState c) (Just 0)
+      ResultHandler.unit =<< execute (Statement.beginTransaction (statementIsolation, write)) c
+    where
+      statementIsolation =
         case isolation of
-          Serializable    -> Statement.Serializable
-          RepeatableReads -> Statement.RepeatableRead
-          ReadCommitted   -> Statement.ReadCommitted
-          ReadUncommitted -> Statement.ReadCommitted
-  finishTransaction commit (Connection c) =
-    runSession c $ Session.finishTransaction commit
+          Backend.Serializable    -> Statement.Serializable
+          Backend.RepeatableReads -> Statement.RepeatableRead
+          Backend.ReadCommitted   -> Statement.ReadCommitted
+          Backend.ReadUncommitted -> Statement.ReadCommitted
+  finishTransaction commit c =
+    do
+      ResultHandler.unit =<< execute (bool Statement.abortTransaction Statement.commitTransaction commit) c
+      writeIORef (transactionState c) Nothing
 
-
-runSession :: Session.Context -> Session.Session r -> IO r
-runSession c s =
-  {-# SCC runSession #-} 
-  Session.run c s >>= either onError return
-  where
-    onError =
-      \case
-        Session.NotInTransaction -> 
-          throwIO $ NotInTransaction
-        Session.UnexpectedResult t -> 
-          throwIO $ UnexpectedResult t
-        Session.ResultError e -> 
-          throwIO $ ErroneousResult $ fromString $ show e
-        Session.UnparsableTemplate b t -> 
-          throwIO $ UnparsableTemplate $ fromString $
-            "Template: " <> show b <> ". " <>
-            "Error: " <> show t <> "."
-        Session.TransactionConflict ->
-          throwIO $ TransactionConflict
-
-{-# INLINE hoistSessionStream #-}
-hoistSessionStream :: Session.Context -> Session.Stream -> Stream Postgres
-hoistSessionStream c =
-  {-# SCC hoistSessionStream #-} 
-  unsafeCoerce . hoist (runSession c)
-
-mkSessionStatement :: Statement Postgres -> Statement.Statement
-mkSessionStatement (template, values) =
+liftStatement :: Backend.Statement Postgres -> Statement.Statement
+liftStatement (template, values) =
   (template, map unpackStatementArgument values, True)
+
+execute :: Statement.Statement -> Backend.Connection Postgres -> IO ResultParser.Result
+execute s c =
+  ResultParser.parse (connection c) =<< do
+    let (template, params, preparable) = s
+    convertedTemplate <- convertTemplate template
+    case preparable of
+      True -> do
+        let (tl, vl) = unzip params
+        key <- StatementPreparer.prepare convertedTemplate tl (preparer c)
+        PQ.execPrepared (connection c) key vl PQ.Text
+      False -> do
+        let params' = map (\(t, v) -> (\(vb, vf) -> (t, vb, vf)) <$> v) params
+        PQ.execParams (connection c) convertedTemplate params' PQ.Text
+
+convertTemplate :: ByteString -> IO ByteString
+convertTemplate t =
+  case TemplateConverter.convert t of
+    Left m -> 
+      throwIO $ Backend.UnparsableTemplate $ 
+        "Template: " <> Text.decodeLatin1 t <> ". " <>
+        "Error: " <> m <> "."
+    Right r ->
+      return r
+
 
 
 -- * Mappings
 -------------------------
 
-instance Mapping Postgres a => Mapping Postgres (Maybe a) where
+instance Backend.Mapping Postgres a => Backend.Mapping Postgres (Maybe a) where
   renderValue =
     \case
       Nothing -> 
-        case renderValue (undefined :: a) of
+        case Backend.renderValue (undefined :: a) of
           StatementArgument (oid, _) -> StatementArgument (oid, Nothing)
       Just v ->
-        renderValue v
-  parseResult = traverse (parseResult . Result . Just) . unpackResult
+        Backend.renderValue v
+  parseResult = traverse (Backend.parseResult . Result . Just) . unpackResult
 
-instance Mapping Postgres Bool where
+instance Backend.Mapping Postgres Bool where
   renderValue = mkRenderValue OID.bool Renderer.bool
   parseResult = mkParseResult Parser.bool
 
-instance Mapping Postgres Char where
+instance Backend.Mapping Postgres Char where
   renderValue = mkRenderValue OID.varchar Renderer.char
   parseResult = mkParseResult Parser.utf8Char
 
-instance Mapping Postgres Text where
+instance Backend.Mapping Postgres Text where
   renderValue = mkRenderValue OID.text Renderer.text
   parseResult = mkParseResult Parser.utf8Text
 
-instance Mapping Postgres Int where
+instance Backend.Mapping Postgres Int where
   renderValue = mkRenderValue OID.int8 Renderer.int
   parseResult = mkParseResult Parser.integral
 
-instance Mapping Postgres Int8 where
+instance Backend.Mapping Postgres Int8 where
   renderValue = mkRenderValue OID.int2 Renderer.int8
   parseResult = mkParseResult Parser.integral
 
-instance Mapping Postgres Int16 where
+instance Backend.Mapping Postgres Int16 where
   renderValue = mkRenderValue OID.int2 Renderer.int16
   parseResult = mkParseResult Parser.integral
 
-instance Mapping Postgres Int32 where
+instance Backend.Mapping Postgres Int32 where
   renderValue = mkRenderValue OID.int4 Renderer.int32
   parseResult = mkParseResult Parser.integral
 
-instance Mapping Postgres Int64 where
+instance Backend.Mapping Postgres Int64 where
   renderValue = mkRenderValue OID.int8 Renderer.int64
   parseResult = mkParseResult Parser.integral
 
-instance Mapping Postgres Word where
+instance Backend.Mapping Postgres Word where
   renderValue = mkRenderValue OID.int8 Renderer.word
   parseResult = mkParseResult Parser.unsignedIntegral
 
-instance Mapping Postgres Word8 where
+instance Backend.Mapping Postgres Word8 where
   renderValue = mkRenderValue OID.int2 Renderer.word8
   parseResult = mkParseResult Parser.unsignedIntegral
 
-instance Mapping Postgres Word16 where
+instance Backend.Mapping Postgres Word16 where
   renderValue = mkRenderValue OID.int4 Renderer.word16
   parseResult = mkParseResult Parser.unsignedIntegral
 
-instance Mapping Postgres Word32 where
+instance Backend.Mapping Postgres Word32 where
   renderValue = mkRenderValue OID.int8 Renderer.word32
   parseResult = mkParseResult Parser.unsignedIntegral
 
-instance Mapping Postgres Word64 where
+instance Backend.Mapping Postgres Word64 where
   renderValue = mkRenderValue OID.int8 Renderer.word64
   parseResult = mkParseResult Parser.unsignedIntegral
 
-instance Mapping Postgres Day where
+instance Backend.Mapping Postgres Day where
   renderValue = mkRenderValue OID.date Renderer.day
   parseResult = mkParseResult Parser.day
 
-instance Mapping Postgres TimeOfDay where
+instance Backend.Mapping Postgres TimeOfDay where
   renderValue = mkRenderValue OID.time Renderer.timeOfDay
   parseResult = mkParseResult Parser.timeOfDay
 
-instance Mapping Postgres LocalTime where
+instance Backend.Mapping Postgres LocalTime where
   renderValue = mkRenderValue OID.timestamp Renderer.localTime
   parseResult = mkParseResult Parser.localTime
 
-instance Mapping Postgres ZonedTime where
+instance Backend.Mapping Postgres ZonedTime where
   renderValue = mkRenderValue OID.timestamptz Renderer.zonedTime 
   parseResult = mkParseResult Parser.zonedTime 
 
-instance Mapping Postgres UTCTime where
+instance Backend.Mapping Postgres UTCTime where
   renderValue = mkRenderValue OID.timestamp Renderer.utcTime
   parseResult = mkParseResult Parser.utcTime
 
@@ -196,14 +224,14 @@ instance Mapping Postgres UTCTime where
 -- |
 -- Make a 'renderValue' function with the 'Text' format.
 {-# INLINE mkRenderValue #-}
-mkRenderValue :: L.Oid -> Renderer.R a -> (a -> StatementArgument Postgres)
+mkRenderValue :: PQ.Oid -> Renderer.R a -> (a -> Backend.StatementArgument Postgres)
 mkRenderValue o r a =
-  StatementArgument (o, Just (Renderer.run a r, L.Text))
+  StatementArgument (o, Just (Renderer.run a r, PQ.Text))
 
 {-# INLINE mkParseResult #-}
-mkParseResult :: Parser.P a -> (Result Postgres -> Either Text a)
+mkParseResult :: Parser.P a -> (Backend.Result Postgres -> Either Text a)
 mkParseResult p (Result r) =
   do
     r' <- maybe (Left "Null result") Right r
-    left (\t -> "Input: " <> Data.Text.Encoding.decodeLatin1 r' <> ". Error: " <> t) $ 
+    left (\t -> "Input: " <> Text.decodeLatin1 r' <> ". Error: " <> t) $ 
       Parser.run r' p

@@ -50,12 +50,12 @@ library
     Hasql.Postgres.OID
     Hasql.Postgres.Statement
     Hasql.Postgres.Parser
-    Hasql.Postgres.Session
+    Hasql.Postgres.StatementPreparer
     Hasql.Postgres.TemplateConverter
     Hasql.Postgres.TemplateConverter.Parser
+    Hasql.Postgres.ResultHandler
     Hasql.Postgres.LibPQ.Connector
     Hasql.Postgres.LibPQ.Result
-    Hasql.Postgres.LibPQ.StatementPreparer
   exposed-modules:
     Hasql.Postgres
   build-depends:
