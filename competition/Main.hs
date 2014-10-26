@@ -22,51 +22,6 @@ import qualified Test.QuickCheck.Instances
 main =
   benchmark $ do
 
-    standoff "Templates" $ do
-
-      rows :: [(Text, Day)] <- 
-        liftIO $ replicateM 100 $ 
-          (,) <$> Q.generate Q.arbitrary <*> Q.generate Q.arbitrary
-
-      subject "hasql" $ do
-        pause
-        H.session (H.Postgres host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
-          H.tx Nothing $ do
-            H.unit [H.q|DROP TABLE IF EXISTS a|]
-            H.unit [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
-                                        name VARCHAR NOT NULL, 
-                                        birthday DATE,
-                                        PRIMARY KEY (id))|]
-            forM_ rows $ \(name, birthday) -> do
-              H.unit $ [H.q|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
-          lift $ continue
-          replicateM_ 100 $ do
-            H.tx Nothing $ do
-              H.list $ [H.q|SELECT * FROM a WHERE id > ? AND id < ?|] (0 :: Int) (1000 :: Int)
-                :: H.Tx H.Postgres s [(Int, Text, Day)]
-          lift $ pause
-
-      subject "postgresql-simple" $ do
-        pause
-        c <- liftIO $ P.connect $ P.ConnectInfo host port user password db
-        liftIO $ P.execute_ c "SET client_min_messages TO WARNING"
-        liftIO $ P.execute_ c "DROP TABLE IF EXISTS a"
-        liftIO $ P.execute_ c [P.sql|CREATE TABLE a (id SERIAL NOT NULL, 
-                                                     name VARCHAR NOT NULL, 
-                                                     birthday DATE, 
-                                                     PRIMARY KEY (id))|]
-        forM_ rows $ \(name, birthday) -> do
-          liftIO $ P.execute c "INSERT INTO a (name, birthday) VALUES (?, ?)" (name, birthday)
-        continue
-        liftIO $ replicateM_ 100 $ do
-          P.query c "SELECT * FROM a WHERE id > ? AND id < ?" (0 :: Int, 1000 :: Int) 
-            :: IO [(Int, Text, Day)]
-        pause
-        liftIO $ P.close c
-
-    standoff "Parameters rendering" $ do
-      return ()
-
     standoff "Results parsing" $ do
 
       rows :: [(Text, Day)] <- 
@@ -104,6 +59,49 @@ main =
         continue
         liftIO $ replicateM_ 100 $ do
           P.query_ c "SELECT * FROM a" :: IO [(Int, Text, Day)]
+        pause
+        liftIO $ P.close c
+
+    standoff "Templates and rendering" $ do
+
+      rows :: [(Text, Day)] <- 
+        liftIO $ replicateM 100 $ 
+          (,) <$> Q.generate Q.arbitrary <*> Q.generate Q.arbitrary
+
+      subject "hasql" $ do
+        pause
+        H.session (H.Postgres host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
+          H.tx Nothing $ do
+            H.unit [H.q|DROP TABLE IF EXISTS a|]
+            H.unit [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
+                                        name VARCHAR NOT NULL, 
+                                        birthday DATE,
+                                        PRIMARY KEY (id))|]
+          lift $ continue
+          replicateM_ 1000 $ do
+            H.tx Nothing $ do
+              H.list $ 
+                [H.q|SELECT * FROM a WHERE id > ? AND id < ? AND birthday != ?|] 
+                  (1000 :: Int)
+                  (0 :: Int) 
+                  (read "2014-10-26" :: Day)
+                :: H.Tx H.Postgres s [(Int, Text, Day)]
+          lift $ pause
+
+      subject "postgresql-simple" $ do
+        pause
+        c <- liftIO $ P.connect $ P.ConnectInfo host port user password db
+        liftIO $ P.execute_ c "SET client_min_messages TO WARNING"
+        liftIO $ P.execute_ c "DROP TABLE IF EXISTS a"
+        liftIO $ P.execute_ c [P.sql|CREATE TABLE a (id SERIAL NOT NULL, 
+                                                     name VARCHAR NOT NULL, 
+                                                     birthday DATE, 
+                                                     PRIMARY KEY (id))|]
+        continue
+        liftIO $ replicateM_ 1000 $ do
+          P.query c "SELECT * FROM a WHERE id > ? AND id < ? AND birthday != ?" 
+            (1000 :: Int, 0 :: Int, read "2014-10-26" :: Day) 
+            :: IO [(Int, Text, Day)]
         pause
         liftIO $ P.close c
 
