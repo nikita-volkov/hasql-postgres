@@ -1,6 +1,8 @@
 module Hasql.Postgres.Prelude
 ( 
   module Exports,
+  LazyByteString,
+  LazyText,
   bug,
   bottom,
   partial,
@@ -59,7 +61,12 @@ import Development.Placeholders as Exports
 -- custom
 -------------------------
 import qualified Debug.Trace.LocationTH
+import qualified Data.Text.Lazy
+import qualified Data.ByteString.Lazy
 
+
+type LazyByteString = Data.ByteString.Lazy.ByteString
+type LazyText = Data.Text.Lazy.Text
 
 bug = [e| $(Debug.Trace.LocationTH.failure) . (msg <>) |]
   where
