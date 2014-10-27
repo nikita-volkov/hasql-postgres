@@ -159,121 +159,121 @@ instance Backend.Mapping Postgres a => Backend.Mapping Postgres (Maybe a) where
 
 -- | Maps to \"bool\".
 instance Backend.Mapping Postgres Bool where
-  renderValue = mkRenderValue OID.bool Renderer.bool
+  renderValue = mkRenderValue PQ.Text OID.bool Renderer.bool
   parseResult = mkParseResult Parser.bool
 
 -- | Maps to \"int8\".
 instance Backend.Mapping Postgres Int where
-  renderValue = mkRenderValue OID.int8 Renderer.int
+  renderValue = mkRenderValue PQ.Text OID.int8 Renderer.int
   parseResult = mkParseResult Parser.integral
 
 -- | Maps to \"int2\".
 instance Backend.Mapping Postgres Int8 where
-  renderValue = mkRenderValue OID.int2 Renderer.int8
+  renderValue = mkRenderValue PQ.Text OID.int2 Renderer.int8
   parseResult = mkParseResult Parser.integral
 
 -- | Maps to \"int2\".
 instance Backend.Mapping Postgres Int16 where
-  renderValue = mkRenderValue OID.int2 Renderer.int16
+  renderValue = mkRenderValue PQ.Text OID.int2 Renderer.int16
   parseResult = mkParseResult Parser.integral
 
 -- | Maps to \"int4\".
 instance Backend.Mapping Postgres Int32 where
-  renderValue = mkRenderValue OID.int4 Renderer.int32
+  renderValue = mkRenderValue PQ.Text OID.int4 Renderer.int32
   parseResult = mkParseResult Parser.integral
 
 -- | Maps to \"int8\".
 instance Backend.Mapping Postgres Int64 where
-  renderValue = mkRenderValue OID.int8 Renderer.int64
+  renderValue = mkRenderValue PQ.Text OID.int8 Renderer.int64
   parseResult = mkParseResult Parser.integral
 
 -- | Maps to \"int8\".
 instance Backend.Mapping Postgres Word where
-  renderValue = mkRenderValue OID.int8 Renderer.word
+  renderValue = mkRenderValue PQ.Text OID.int8 Renderer.word
   parseResult = mkParseResult Parser.unsignedIntegral
 
 -- | Maps to \"int2\".
 instance Backend.Mapping Postgres Word8 where
-  renderValue = mkRenderValue OID.int2 Renderer.word8
+  renderValue = mkRenderValue PQ.Text OID.int2 Renderer.word8
   parseResult = mkParseResult Parser.unsignedIntegral
 
 -- | Maps to \"int4\".
 instance Backend.Mapping Postgres Word16 where
-  renderValue = mkRenderValue OID.int4 Renderer.word16
+  renderValue = mkRenderValue PQ.Text OID.int4 Renderer.word16
   parseResult = mkParseResult Parser.unsignedIntegral
 
 -- | Maps to \"int8\".
 instance Backend.Mapping Postgres Word32 where
-  renderValue = mkRenderValue OID.int8 Renderer.word32
+  renderValue = mkRenderValue PQ.Text OID.int8 Renderer.word32
   parseResult = mkParseResult Parser.unsignedIntegral
 
 -- | Maps to \"int8\".
 instance Backend.Mapping Postgres Word64 where
-  renderValue = mkRenderValue OID.int8 Renderer.word64
+  renderValue = mkRenderValue PQ.Text OID.int8 Renderer.word64
   parseResult = mkParseResult Parser.unsignedIntegral
 
 -- | Maps to \"float4\".
 instance Backend.Mapping Postgres Float where
-  renderValue = mkRenderValue OID.float4 Renderer.float
+  renderValue = mkRenderValue PQ.Text OID.float4 Renderer.float
   parseResult = mkParseResult Parser.float
 
 -- | Maps to \"float8\".
 instance Backend.Mapping Postgres Double where
-  renderValue = mkRenderValue OID.float8 Renderer.double
+  renderValue = mkRenderValue PQ.Text OID.float8 Renderer.double
   parseResult = mkParseResult Parser.double
 
 -- | Maps to \"numeric\".
 instance Backend.Mapping Postgres Scientific where
-  renderValue = mkRenderValue OID.numeric Renderer.scientific
+  renderValue = mkRenderValue PQ.Text OID.numeric Renderer.scientific
   parseResult = mkParseResult Parser.scientific
 
 -- | Maps to \"date\".
 instance Backend.Mapping Postgres Day where
-  renderValue = mkRenderValue OID.date Renderer.day
+  renderValue = mkRenderValue PQ.Text OID.date Renderer.day
   parseResult = mkParseResult Parser.day
 
 -- | Maps to \"time\".
 instance Backend.Mapping Postgres TimeOfDay where
-  renderValue = mkRenderValue OID.time Renderer.timeOfDay
+  renderValue = mkRenderValue PQ.Text OID.time Renderer.timeOfDay
   parseResult = mkParseResult Parser.timeOfDay
 
 -- | Maps to \"timestamp\".
 instance Backend.Mapping Postgres LocalTime where
-  renderValue = mkRenderValue OID.timestamp Renderer.localTime
+  renderValue = mkRenderValue PQ.Text OID.timestamp Renderer.localTime
   parseResult = mkParseResult Parser.localTime
 
 -- | Maps to \"timestamptz\".
 instance Backend.Mapping Postgres ZonedTime where
-  renderValue = mkRenderValue OID.timestamptz Renderer.zonedTime 
+  renderValue = mkRenderValue PQ.Text OID.timestamptz Renderer.zonedTime 
   parseResult = mkParseResult Parser.zonedTime 
 
 -- | Maps to \"timestamp\".
 instance Backend.Mapping Postgres UTCTime where
-  renderValue = mkRenderValue OID.timestamp Renderer.utcTime
+  renderValue = mkRenderValue PQ.Text OID.timestamp Renderer.utcTime
   parseResult = mkParseResult Parser.utcTime
 
 -- | Maps to \"varchar\".
 instance Backend.Mapping Postgres Char where
-  renderValue = mkRenderValue OID.varchar Renderer.char
+  renderValue = mkRenderValue PQ.Text OID.varchar Renderer.char
   parseResult = mkParseResult Parser.utf8Char
 
 -- | Maps to \"text\".
 instance Backend.Mapping Postgres Text where
-  renderValue = mkRenderValue OID.text Renderer.text
+  renderValue = mkRenderValue PQ.Text OID.text Renderer.text
   parseResult = mkParseResult Parser.utf8Text
 
 -- | Maps to \"text\".
 instance Backend.Mapping Postgres LazyText where
-  renderValue = mkRenderValue OID.text Renderer.lazyText
+  renderValue = mkRenderValue PQ.Text OID.text Renderer.lazyText
   parseResult = mkParseResult Parser.utf8LazyText
 
 
 -- |
--- Make a 'renderValue' function with the 'Text' format.
+-- Make a 'renderValue' function.
 {-# INLINE mkRenderValue #-}
-mkRenderValue :: PQ.Oid -> Renderer.R a -> (a -> Backend.StatementArgument Postgres)
-mkRenderValue o r a =
-  StatementArgument (o, Just (Renderer.run a r, PQ.Text))
+mkRenderValue :: PQ.Format -> PQ.Oid -> Renderer.R a -> (a -> Backend.StatementArgument Postgres)
+mkRenderValue f o r a =
+  StatementArgument (o, Just (Renderer.run a r, f))
 
 {-# INLINE mkParseResult #-}
 mkParseResult :: Parser.P a -> (Backend.Result Postgres -> Either Text a)
