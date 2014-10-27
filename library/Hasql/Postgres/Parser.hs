@@ -2,12 +2,13 @@ module Hasql.Postgres.Parser where
 
 import Hasql.Postgres.Prelude hiding (take)
 import Data.Attoparsec.ByteString
-import Data.Attoparsec.ByteString.Char8
+import Data.Attoparsec.ByteString.Char8 hiding (double)
 import qualified Data.ByteString
 import qualified Data.Text
 import qualified Data.Text.Encoding
 import qualified Data.Text.Lazy
 import qualified Data.Text.Lazy.Encoding
+import qualified Data.Attoparsec.ByteString.Char8 as A
 
 
 type P = Parser
@@ -20,9 +21,18 @@ run input parser =
 -- ** Parser
 -------------------------
 
+{-# INLINE labeling #-}
 labeling :: String -> Parser a -> Parser a
 labeling n p = 
   p <?> n
+
+float :: P Float
+float =
+  realToFrac <$> double
+
+double :: P Double
+double = 
+  labeling "double" $ A.double
 
 bool :: P Bool
 bool =

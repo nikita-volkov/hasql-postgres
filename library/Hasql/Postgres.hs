@@ -212,6 +212,16 @@ instance Backend.Mapping Postgres Word64 where
   renderValue = mkRenderValue OID.int8 Renderer.word64
   parseResult = mkParseResult Parser.unsignedIntegral
 
+-- | Maps to \"float4\".
+instance Backend.Mapping Postgres Float where
+  renderValue = mkRenderValue OID.float4 Renderer.float
+  parseResult = mkParseResult Parser.float
+
+-- | Maps to \"float8\".
+instance Backend.Mapping Postgres Double where
+  renderValue = mkRenderValue OID.float8 Renderer.double
+  parseResult = mkParseResult Parser.double
+
 -- | Maps to \"date\".
 instance Backend.Mapping Postgres Day where
   renderValue = mkRenderValue OID.date Renderer.day

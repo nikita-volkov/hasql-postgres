@@ -159,6 +159,12 @@ prop_mappingOfWord32 (v :: Word32) =
 prop_mappingOfWord64 (v :: Word64) =
   Just v === do unsafePerformIO $ session1 $ selectSelf v
 
+prop_mappingOfFloat (v :: Float) =
+  floatEq v (fromJust $ unsafePerformIO $ session1 $ selectSelf v)
+
+prop_mappingOfDouble (v :: Double) =
+  floatEq v (fromJust $ unsafePerformIO $ session1 $ selectSelf v)
+
 prop_mappingOfDay (v :: Day) =
   Just v === do unsafePerformIO $ session1 $ selectSelf v
 
@@ -217,3 +223,9 @@ session1 =
   where
     backendSettings = Postgres "localhost" 5432 "postgres" "" "postgres"
     poolSettings = fromJust $ sessionSettings 6 30
+
+floatEq :: RealFrac a => Show a => a -> a -> Bool
+floatEq a b =
+  a + error > b && a - error < b
+  where
+    error = 1 / 100
