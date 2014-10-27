@@ -7,9 +7,9 @@ import Test.Framework
 import Test.QuickCheck.Instances
 import Hasql
 import Hasql.Postgres (Postgres(..))
-import Data.Text (Text)
 import Data.Time
 import qualified Data.Text
+import qualified Data.Text.Lazy
 import qualified ListT
 import qualified SlaveThread
 import qualified Control.Concurrent.SSem as SSem
@@ -19,6 +19,8 @@ import qualified Hasql.Postgres as H
 import qualified Data.Scientific as Scientific
 
 
+type Text = Data.Text.Text
+type LazyText = Data.Text.Lazy.Text
 type Scientific = Scientific.Scientific
 
 main = 
@@ -130,6 +132,10 @@ prop_mappingOfChar (v :: Char) =
 -- Postgres does not allow the '/NUL' character in text data
 prop_mappingOfText (v :: Text) =
   (isNothing $ Data.Text.find (== '\NUL') v) ==>
+    Just v === do unsafePerformIO $ session1 $ selectSelf v
+
+prop_mappingOfLazyText (v :: LazyText) =
+  (isNothing $ Data.Text.Lazy.find (== '\NUL') v) ==>
     Just v === do unsafePerformIO $ session1 $ selectSelf v
 
 prop_mappingOfInt (v :: Int) =

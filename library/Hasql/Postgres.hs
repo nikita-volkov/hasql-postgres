@@ -262,6 +262,11 @@ instance Backend.Mapping Postgres Text where
   renderValue = mkRenderValue OID.text Renderer.text
   parseResult = mkParseResult Parser.utf8Text
 
+-- | Maps to \"text\".
+instance Backend.Mapping Postgres LazyText where
+  renderValue = mkRenderValue OID.text Renderer.lazyText
+  parseResult = mkParseResult Parser.utf8LazyText
+
 
 -- |
 -- Make a 'renderValue' function with the 'Text' format.

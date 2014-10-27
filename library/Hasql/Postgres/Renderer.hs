@@ -7,6 +7,7 @@ import Hasql.Postgres.Prelude
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy.Encoding as LT
 import qualified Data.ByteString.Builder.Scientific
 
 
@@ -47,6 +48,9 @@ byteString :: R ByteString =
 
 text :: R Text =
   byteString . T.encodeUtf8
+
+lazyText :: R LazyText =
+  lazyByteString . LT.encodeUtf8
 
 
 -- *** enumerations
