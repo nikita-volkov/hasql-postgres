@@ -39,7 +39,6 @@ new connection =
 
 prepare :: ByteString -> [PQ.Oid] -> StatementPreparer -> IO RemoteKey
 prepare s tl (c, counter, table) =
-  {-# SCC prepare #-} 
   do
     let k = LocalKey s tl
     r <- Hashtables.lookup table k

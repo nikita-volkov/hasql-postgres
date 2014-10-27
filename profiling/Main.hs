@@ -26,8 +26,7 @@ main = do
         H.unit $ [H.q|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
     replicateM_ 2000 $ do
       H.tx Nothing $ do
-        {-# SCC "list" #-} 
-          H.list $ [H.q|SELECT * FROM a|] :: H.Tx H.Postgres s [(Int, Text, Day)]
+        H.list $ [H.q|SELECT * FROM a|] :: H.Tx H.Postgres s [(Int, Text, Day)]
 
 
 host = "localhost"

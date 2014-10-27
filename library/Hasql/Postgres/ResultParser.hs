@@ -119,7 +119,6 @@ type RowsStream =
 
 getRowsStream :: L.Result -> IO RowsStream
 getRowsStream r =
-  {-# SCC "getRowsStream" #-} 
   do
     nr <- L.ntuples r
     nc <- L.nfields r
@@ -145,7 +144,6 @@ type RowsVector =
 
 getRowsVector :: L.Result -> IO RowsVector
 getRowsVector r =
-  {-# SCC "getRowsVector" #-} 
   do
     nr <- L.ntuples r
     nc <- L.nfields r
@@ -164,7 +162,6 @@ type RowsList =
 
 getRowsList :: L.Result -> IO RowsList
 getRowsList r =
-  {-# SCC "getRowsList" #-} 
   do
     nr <- L.ntuples r
     nc <- L.nfields r
