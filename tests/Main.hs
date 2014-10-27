@@ -39,7 +39,14 @@ test_rendering =
     rows = [("A", 34525), ("B", 324987)] :: [(Text, Int)]
 
 test_countEffects =
-  unitTestPending ""
+  assertEqual 100 =<< do 
+    session1 $ do
+      tx Nothing $ do
+        unit [q|DROP TABLE IF EXISTS a|]
+        unit [q|CREATE TABLE a (id SERIAL NOT NULL, name VARCHAR NOT NULL)|]
+        replicateM_ 100 $ do
+          unit [q|INSERT INTO a (name) VALUES ('')|]
+        count [q|DELETE FROM a|]
 
 test_autoIncrement =
   assertEqual (Just (1 :: Word64), Just (2 :: Word64)) =<< do
