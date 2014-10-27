@@ -45,7 +45,7 @@ test_countEffects =
         unit [q|DROP TABLE IF EXISTS a|]
         unit [q|CREATE TABLE a (id SERIAL NOT NULL, name VARCHAR NOT NULL)|]
         replicateM_ 100 $ do
-          unit [q|INSERT INTO a (name) VALUES ('')|]
+          unit [q|INSERT INTO a (name) VALUES ('a')|]
         count [q|DELETE FROM a|]
 
 test_autoIncrement =
