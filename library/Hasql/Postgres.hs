@@ -148,11 +148,18 @@ instance Backend.Mapping Postgres a => Backend.Mapping Postgres (Maybe a) where
   renderValue =
     \case
       Nothing -> 
-        case Backend.renderValue (undefined :: a) of
+        case Backend.renderValue ($bottom :: a) of
           StatementArgument (oid, _) -> StatementArgument (oid, Nothing)
       Just v ->
         Backend.renderValue v
   parseResult = traverse (Backend.parseResult . Result . Just) . unpackResult
+
+instance (Backend.Mapping Postgres a, Renderer.Renderable a, Parser.Parsable a, OID.Identifiable a) => 
+         Backend.Mapping Postgres (Vector a) where
+  renderValue = 
+    mkRenderValue PQ.Text (OID.identifyOID (undefined :: Vector a)) (Renderer.renderer Nothing)
+  parseResult = 
+    mkParseResult (Parser.parser Nothing)
 
 -- | Maps to \"bool\".
 instance Backend.Mapping Postgres Bool where
@@ -253,6 +260,11 @@ instance Backend.Mapping Postgres UTCTime where
 instance Backend.Mapping Postgres Char where
   renderValue = mkRenderValue PQ.Text OID.varchar Renderer.char
   parseResult = mkParseResult Parser.utf8Char
+
+-- -- | Maps to \"text\".
+-- instance Backend.Mapping Postgres String where
+--   renderValue = mkRenderValue PQ.Text OID.text Renderer.string
+--   parseResult = mkParseResult Parser.utf8String
 
 -- | Maps to \"text\".
 instance Backend.Mapping Postgres Text where

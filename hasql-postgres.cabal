@@ -168,6 +168,7 @@ test-suite tests
     SafeSemaphore == 0.10.*,
     slave-thread == 0.1.*,
     -- data:
+    vector == 0.10.*,
     old-locale == 1.0.*,
     time == 1.4.*,
     scientific == 0.3.*,

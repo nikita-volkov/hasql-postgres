@@ -1,14 +1,17 @@
 module Hasql.Postgres.Parser where
 
-import Hasql.Postgres.Prelude hiding (take)
+import Hasql.Postgres.Prelude hiding (take, bool)
 import Data.Attoparsec.ByteString
 import Data.Attoparsec.ByteString.Char8 hiding (double)
 import qualified Data.ByteString
+import qualified Data.ByteString.Builder
 import qualified Data.ByteString.Lazy
 import qualified Data.Text
 import qualified Data.Text.Encoding
 import qualified Data.Text.Lazy
 import qualified Data.Text.Lazy.Encoding
+import qualified Data.Text.Lazy.Builder
+import qualified Data.Vector
 import qualified Data.Attoparsec.ByteString.Char8 as A
 import qualified Database.PostgreSQL.LibPQ as PQ
 
@@ -144,7 +147,7 @@ timeZone =
   do
     (p, h, m, s) <- timeZoneTuple
     return $!
-      minutesToTimeZone ((Hasql.Postgres.Prelude.bool negate id p) (60 * h + m))
+      minutesToTimeZone ((if p then negate else id) (60 * h + m))
 
 -- |
 -- Takes seconds in timezone into account.
@@ -160,7 +163,7 @@ zonedTime =
         then \t -> timeToTimeOfDay $ timeOfDayToTime t - fromIntegral s
         else id
     composeTimezone p h m =
-      minutesToTimeZone ((Hasql.Postgres.Prelude.bool negate id p) (60 * h + m))
+      minutesToTimeZone ((if p then negate else id) (60 * h + m))
 
 utcTime :: P UTCTime
 utcTime =
@@ -168,3 +171,237 @@ utcTime =
 
 diffTime :: P DiffTime
 diffTime = timeOfDayToTime <$> timeOfDay
+
+
+-- * Parsable
+-------------------------
+
+class Parsable a where
+  -- |
+  -- @Maybe Char@ indicates which quote to expect for values,
+  -- which are quotable.
+  parser :: Maybe Char -> P a
+
+instance Parsable a => Parsable (Maybe a) where
+  parser q =
+    (string "NULL" *> pure Nothing) <|>
+    (Just <$> parser q)
+
+instance Parsable a => Parsable [a] where
+  parser _ =
+    char '{' *> sepBy (parser (Just '"')) (char ',' <* skipSpace) <* char '}'
+        
+instance Parsable a => Parsable (Vector a) where
+  parser _ =
+    Data.Vector.fromList <$> parser $bottom
+
+instance Parsable Bool where
+  parser =
+    \case
+      Nothing -> bool
+      Just q  -> char q *> bool <* char q
+
+instance Parsable Integer where
+  parser =
+    \case
+      Nothing -> signed decimal
+      Just q  -> signed decimal
+
+instance Parsable Int where
+  parser =
+    \case
+      Nothing -> signed decimal
+      Just q  -> signed decimal
+
+instance Parsable Int8 where
+  parser =
+    \case
+      Nothing -> signed decimal
+      Just q  -> signed decimal
+
+instance Parsable Int16 where
+  parser =
+    \case
+      Nothing -> signed decimal
+      Just q  -> signed decimal
+
+instance Parsable Int32 where
+  parser =
+    \case
+      Nothing -> signed decimal
+      Just q  -> signed decimal
+
+instance Parsable Int64 where
+  parser =
+    \case
+      Nothing -> signed decimal
+      Just q  -> signed decimal
+
+instance Parsable Word where
+  parser =
+    \case
+      Nothing -> decimal
+      Just q  -> decimal
+
+instance Parsable Word8 where
+  parser =
+    \case
+      Nothing -> decimal
+      Just q  -> decimal
+
+instance Parsable Word16 where
+  parser =
+    \case
+      Nothing -> decimal
+      Just q  -> decimal
+
+instance Parsable Word32 where
+  parser =
+    \case
+      Nothing -> decimal
+      Just q  -> decimal
+
+instance Parsable Word64 where
+  parser =
+    \case
+      Nothing -> decimal
+      Just q  -> decimal
+
+instance Parsable Float where
+  parser =
+    \case
+      Nothing -> float
+      Just q  -> float
+
+instance Parsable Double where
+  parser =
+    \case
+      Nothing -> double
+      Just q  -> double
+
+instance Parsable Scientific where
+  parser =
+    \case
+      Nothing -> A.scientific
+      Just q  -> A.scientific
+
+instance Parsable Day where
+  parser =
+    \case
+      Nothing -> day
+      Just q  -> char q *> day <* char q
+
+instance Parsable TimeOfDay where
+  parser =
+    \case
+      Nothing -> timeOfDay
+      Just q  -> char q *> timeOfDay <* char q
+
+instance Parsable LocalTime where
+  parser =
+    \case
+      Nothing -> localTime
+      Just q  -> char q *> localTime <* char q
+
+instance Parsable ZonedTime where
+  parser =
+    \case
+      Nothing -> zonedTime
+      Just q  -> char q *> zonedTime <* char q
+
+instance Parsable UTCTime where
+  parser =
+    \case
+      Nothing -> utcTime
+      Just q  -> char q *> utcTime <* char q
+
+instance Parsable Char where
+  parser =
+    \case
+      Nothing -> utf8Char
+      Just q  -> utf8Char <|>
+                 (char q *> (escapedChar q <|> escapedChar '\\' <|> utf8Char) <* char q)
+
+instance Parsable Text where
+  parser =
+    \case
+      Nothing -> utf8Text
+      Just q  -> char q *> unescapedText <* char q
+
+instance Parsable LazyText where
+  parser =
+    \case
+      Nothing -> utf8LazyText
+      Just q  -> char q *> unescapedLazyText <* char q
+
+instance Parsable ByteString where
+  parser =
+    \case
+      Nothing -> byteString
+      Just q  -> char q *> unescapedByteString <* char q
+
+instance Parsable LazyByteString where
+  parser =
+    \case
+      Nothing -> lazyByteString
+      Just q  -> char q *> unescapedLazyByteString <* char q
+
+
+-- * Unescaping
+-------------------------
+
+escapedChar :: Char -> P Char
+escapedChar c =
+  char '\\' *> char c
+
+unescapedWord8 :: P Word8
+unescapedWord8 =
+  labeling "unescapedWord8" $ do
+    w <- anyWord8
+    if w == $([|fromIntegral $ ord '\\'|])
+      then anyWord8
+      else return w
+
+unescapedByteStringBuilder :: P Data.ByteString.Builder.Builder
+unescapedByteStringBuilder =
+  labeling "unescapedByteStringBuilder" $ 
+    (<>) <$> (Data.ByteString.Builder.word8 <$> unescapedWord8) <*>
+             (unescapedByteStringBuilder <|> pure mempty)
+
+unescapedLazyByteString :: P LazyByteString
+unescapedLazyByteString =
+  Data.ByteString.Builder.toLazyByteString <$> unescapedByteStringBuilder
+
+unescapedByteString :: P ByteString
+unescapedByteString =
+  Data.ByteString.Lazy.toStrict <$> unescapedLazyByteString
+
+unescapedUTF8Char :: P Char
+unescapedUTF8Char =
+  labeling "unescapedUTF8Char" $ 
+    let loop attempt b = do
+          w <- unescapedWord8
+          let b' = b <> Data.ByteString.singleton w
+          case Data.Text.Encoding.decodeUtf8' b' of
+            Right t -> return $ Data.Text.head t
+            Left _ -> 
+              if attempt < 4 
+                then loop (succ attempt) b'
+                else fail "Failed to decode 4 bytes"
+        in loop 0 mempty
+
+unescapedTextBuilder :: P Data.Text.Lazy.Builder.Builder
+unescapedTextBuilder =
+  labeling "unescapedTextBuilder" $ 
+    (<>) <$> (Data.Text.Lazy.Builder.singleton <$> unescapedUTF8Char) <*>
+             (unescapedTextBuilder <|> pure mempty)
+
+unescapedLazyText :: P LazyText
+unescapedLazyText =
+  Data.Text.Lazy.Builder.toLazyText <$> unescapedTextBuilder
+
+unescapedText :: P Text
+unescapedText =
+  Data.Text.Lazy.toStrict <$> unescapedLazyText
+
+

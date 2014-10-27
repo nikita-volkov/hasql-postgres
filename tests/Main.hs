@@ -21,6 +21,7 @@ import qualified Hasql.Backend as Backend
 import qualified Hasql as H
 import qualified Hasql.Postgres as H
 import qualified Data.Scientific as Scientific
+import qualified Data.Vector as Vector
 
 
 type Text = Data.Text.Text
@@ -116,10 +117,55 @@ test_select =
         list $ [q|select oid, typname from pg_type|]
     liftIO $ assertNotEqual [] r
 
+
+-- * Mappings
+-------------------------
+
 test_mappingOfMaybe =
   session1 $ do
     validMappingSession (Just '!')
     validMappingSession (Nothing :: Maybe Bool)
+
+test_mappingOfVector1 =
+  session1 $ do
+    validMappingSession v1
+    validMappingSession v2
+  where
+    v1  = Vector.fromList [v2, v2]
+    v2  = Vector.fromList [Just 'a', Nothing, Just 'b']
+
+test_mappingOfVector2 =
+  session1 $ do
+    validMappingSession v1
+    validMappingSession v2
+  where
+    v1  = Vector.fromList [v2, v2]
+    v2  = Vector.fromList [Just (1 :: Int), Just 2, Nothing]
+
+test_mappingOfVector3 =
+  session1 $ do
+    validMappingSession v1
+  where
+    v1 =
+      Vector.fromList
+        [
+          " 'a' \"b\" \\c\\ " :: Text
+        ]
+
+test_mappingOfVector4 =
+  assertEqual (Just (Identity v1)) =<< do
+    session1 $ tx Nothing $ do
+      unit $ [q|DROP TABLE IF EXISTS a|]
+      unit $ [q|CREATE TABLE a ("v" char[][])|]
+      unit $ [q|INSERT INTO a (v) VALUES (?)|] v1
+      single $ [q|SELECT v FROM a|]
+  where
+    v1 =
+      Vector.fromList
+        [
+          Vector.fromList [Just 'a', Just 'b'],
+          Vector.fromList [Nothing, Just 'c']
+        ]
 
 test_mappingOfBool =
   session1 $ do
@@ -218,6 +264,13 @@ prop_mappingOfUTCTime =
   where
     gen = UTCTime <$> arbitrary <*> microsDiffTimeGen
 
+
+-- * Helpers
+-------------------------
+
+-- ** Generators
+-------------------------
+
 scientificGen :: Gen Scientific
 scientificGen =
   Scientific.scientific <$> arbitrary <*> arbitrary
@@ -233,6 +286,9 @@ microsLocalTimeGen =
 microsDiffTimeGen :: Gen DiffTime
 microsDiffTimeGen = do
   fmap picosecondsToDiffTime $ fmap (* (10^6)) $ choose (0, (10^6)*24*60*60)
+
+-- ** Session
+-------------------------
 
 selectSelf :: 
   Backend.Mapping Postgres a => Typeable a => 
@@ -252,6 +308,9 @@ session1 =
   where
     backendSettings = Postgres "localhost" 5432 "postgres" "" "postgres"
     poolSettings = fromJust $ sessionSettings 6 30
+
+-- ** Property
+-------------------------
 
 floatEq :: RealFrac a => Show a => a -> a -> Property
 floatEq a b =

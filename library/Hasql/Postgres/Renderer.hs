@@ -4,20 +4,26 @@
 module Hasql.Postgres.Renderer where
 
 import Hasql.Postgres.Prelude
-import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as BC
+import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy.Char8 as BLC
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy.Encoding as LT
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 import qualified Data.ByteString.Builder.Scientific
+import qualified Data.Vector as Vector
 
 
 -- | A renderer of @a@.
 type R a =
-  a -> B.Builder
+  a -> BB.Builder
 
 run :: a -> R a -> ByteString
 run a f =
-  (L.toStrict . B.toLazyByteString . f) a
+  (BL.toStrict . BB.toLazyByteString . f) a
 
 
 -- ** Renderer
@@ -25,35 +31,35 @@ run a f =
 
 ascii :: Show a => R a
 ascii =
-  B.string7 . show
+  BB.string7 . show
 
 
 -- *** strings
 -------------------------
 
 char7 :: R Char = 
-  B.char7
+  BB.char7
 
 char :: R Char = 
-  B.charUtf8
+  BB.charUtf8
 
 string7 :: R String = 
-  B.string7
+  BB.string7
 
 string :: R String = 
-  B.string8
+  BB.string8
 
 byteString :: R ByteString = 
-  B.byteString
+  BB.byteString
 
 lazyByteString :: R LazyByteString = 
-  B.lazyByteString
+  BB.lazyByteString
 
 text :: R Text =
-  byteString . T.encodeUtf8
+  T.encodeUtf8Builder
 
 lazyText :: R LazyText =
-  lazyByteString . LT.encodeUtf8
+  TL.encodeUtf8Builder
 
 
 -- *** enumerations
@@ -63,43 +69,43 @@ bool :: R Bool =
   \b -> if b then word8 1 else word8 0
 
 word8 :: R Word8 =
-  B.word8Dec
+  BB.word8Dec
 
 word16 :: R Word16 =
-  B.word16Dec
+  BB.word16Dec
 
 word32 :: R Word32 =
-  B.word32Dec
+  BB.word32Dec
 
 word64 :: R Word64 =
-  B.word64Dec
+  BB.word64Dec
 
 word :: R Word =
-  B.wordDec
+  BB.wordDec
 
 int8 :: R Int8 =
-  B.int8Dec
+  BB.int8Dec
 
 int16 :: R Int16 =
-  B.int16Dec
+  BB.int16Dec
 
 int32 :: R Int32 =
-  B.int32Dec
+  BB.int32Dec
 
 int64 :: R Int64 =
-  B.int64Dec
+  BB.int64Dec
 
 int :: R Int =
-  B.intDec
+  BB.intDec
 
 integer :: R Integer =
-  B.integerDec
+  BB.integerDec
 
 paddedInt :: Int -> R Int
 paddedInt padding n =
   if padding <= width
     then int n
-    else mconcat (replicate (padding - width) (B.char7 '0')) <> int n
+    else mconcat (replicate (padding - width) (BB.char7 '0')) <> int n
   where
     width = fromIntegral (succ (floor (logBase 10 (fromIntegral n))) :: Integer)
     
@@ -108,47 +114,195 @@ paddedInt padding n =
 -------------------------
 
 float :: R Float =
-  B.floatDec
+  BB.floatDec
   
 double :: R Double =
-  B.doubleDec
+  BB.doubleDec
 
 pico :: R Pico =
-  B.string7 . showFixed True
+  BB.string7 . showFixed True
 
 scientific :: R Scientific =
   Data.ByteString.Builder.Scientific.scientificBuilder
+
 
 -- *** time
 -------------------------
 
 day :: R Day = 
-  B.string7 . formatTime defaultTimeLocale (iso8601DateFormat Nothing)
+  BB.string7 . formatTime defaultTimeLocale (iso8601DateFormat Nothing)
 
 timeOfDay :: R TimeOfDay = 
-  B.string7 . formatTime defaultTimeLocale "%T%Q"
+  BB.string7 . formatTime defaultTimeLocale "%T%Q"
 
 localTime :: R LocalTime = 
-  B.string7 . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q"))
+  BB.string7 . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q"))
 
 timeZone :: R TimeZone =
   \(TimeZone t _ _) ->
     if t < 0
-      then B.char7 '-' <> uncurry hm (divMod (negate t) 60)
-      else B.char7 '+' <> uncurry hm (divMod t 60)
+      then BB.char7 '-' <> uncurry hm (divMod (negate t) 60)
+      else BB.char7 '+' <> uncurry hm (divMod t 60)
   where
     hm h m = 
-      paddedInt 2 h <> B.char7 ':' <> paddedInt 2 m 
+      paddedInt 2 h <> BB.char7 ':' <> paddedInt 2 m 
 
 zonedTime :: R ZonedTime = 
   \(ZonedTime lt tz) ->
     localTime lt <> timeZone tz
 
 utcTime :: R UTCTime = 
-  B.string7 . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q"))
+  BB.string7 . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q"))
 
 diffTime :: R DiffTime =
   pico . fromRational . toRational
 
 nominalDiffTime :: R NominalDiffTime =
   pico . fromRational . toRational
+
+
+-- * Renderable
+-------------------------
+
+class Renderable a where
+  -- |
+  -- The boolean indicates a quoted mode.
+  renderer :: Maybe Char -> R a
+
+instance Renderable a => Renderable (Maybe a) where
+  renderer q v =
+    maybe (string7 "NULL") (renderer q) v
+
+instance Renderable a => Renderable (Vector a) where
+  renderer _ v =
+    execWriter $ do
+      tell $ char7 '{'
+      tell $ mconcat $ intersperse (string7 ", ") $ map (renderer (Just '"')) $ Vector.toList v
+      tell $ char7 '}'
+
+instance Renderable Bool where
+  renderer q =
+    maybe id quoting q . \case
+      True -> char7 't'
+      False -> char7 'f'
+
+instance Renderable Int where
+  renderer _ = 
+    BB.intDec
+
+instance Renderable Int8 where
+  renderer _ = 
+    BB.int8Dec
+
+instance Renderable Int16 where
+  renderer _ = 
+    BB.int16Dec
+
+instance Renderable Int32 where
+  renderer _ = 
+    BB.int32Dec
+
+instance Renderable Int64 where
+  renderer _ = 
+    BB.int64Dec
+
+instance Renderable Integer where
+  renderer _ = 
+    BB.integerDec
+
+instance Renderable Word where
+  renderer _ = 
+    BB.wordDec
+
+instance Renderable Word8 where
+  renderer _ = 
+    BB.word8Dec
+
+instance Renderable Word16 where
+  renderer _ = 
+    BB.word16Dec
+
+instance Renderable Word32 where
+  renderer _ = 
+    BB.word32Dec
+
+instance Renderable Word64 where
+  renderer _ = 
+    BB.word64Dec
+
+instance Renderable Float where
+  renderer _ = 
+    BB.floatDec
+
+instance Renderable Double where
+  renderer _ = 
+    BB.doubleDec
+
+instance Renderable Scientific where
+  renderer _ = 
+    Data.ByteString.Builder.Scientific.scientificBuilder
+
+instance Renderable Day where
+  renderer q = 
+    maybe id quoting q . day
+
+instance Renderable TimeOfDay where
+  renderer q = 
+    maybe id quoting q . timeOfDay
+
+instance Renderable LocalTime where
+  renderer q = 
+    maybe id quoting q . localTime
+
+instance Renderable ZonedTime where
+  renderer q = 
+    maybe id quoting q . zonedTime
+
+instance Renderable UTCTime where
+  renderer q = 
+    maybe id quoting q . utcTime
+
+instance Renderable Char where
+  renderer q =
+    renderer Nothing . T.singleton
+
+instance Renderable Text where
+  renderer =
+    maybe T.encodeUtf8Builder (\q -> quoting q . escaping q . T.encodeUtf8)
+    where
+      escaping q =
+        BC.foldr (mappend . escapedChar8 q) mempty
+
+instance Renderable LazyText where
+  renderer q =
+    maybe TL.encodeUtf8Builder (\qc -> quoting qc . escaping qc . TL.encodeUtf8) q
+    where
+      escaping q =
+        BLC.foldr (mappend . escapedChar8 q) mempty
+
+instance Renderable ByteString where
+  renderer =
+    maybe BB.byteString (\q -> quoting q . escaping q)
+    where
+      escaping q =
+        BC.foldr (mappend . escapedChar8 q) mempty
+
+instance Renderable LazyByteString where
+  renderer =
+    maybe BB.lazyByteString (\q -> quoting q . escaping q)
+    where
+      escaping q =
+        BLC.foldr (mappend . escapedChar8 q) mempty
+
+
+-- ** Helpers
+-------------------------
+
+quoting :: Char -> R BB.Builder
+quoting q =
+  (char7 q <>) . (<> char7 q)
+
+escapedChar8 :: Char -> R Char
+escapedChar8 q c =
+  (if c == q || c == '\\' then (char7 '\\' <>) else id) $ BB.char8 c
+

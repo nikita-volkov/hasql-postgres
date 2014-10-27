@@ -5,6 +5,7 @@ import Test.Framework
 import Hasql.Postgres.Prelude
 
 import {-@ HTF_TESTS @-} Hasql.Postgres.ParserTests
+import {-@ HTF_TESTS @-} Hasql.Postgres.ParserAndRendererTests
 import {-@ HTF_TESTS @-} Hasql.Postgres.TemplateConverterTests
 
 main = 
