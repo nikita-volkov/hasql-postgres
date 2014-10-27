@@ -222,6 +222,11 @@ instance Backend.Mapping Postgres Double where
   renderValue = mkRenderValue OID.float8 Renderer.double
   parseResult = mkParseResult Parser.double
 
+-- | Maps to \"numeric\".
+instance Backend.Mapping Postgres Scientific where
+  renderValue = mkRenderValue OID.numeric Renderer.scientific
+  parseResult = mkParseResult Parser.scientific
+
 -- | Maps to \"date\".
 instance Backend.Mapping Postgres Day where
   renderValue = mkRenderValue OID.date Renderer.day

@@ -9,6 +9,7 @@ import Hasql
 import Hasql.Postgres (Postgres(..))
 import Data.Text (Text)
 import Data.Time
+import Data.Scientific (Scientific)
 import qualified Data.Text
 import qualified ListT
 import qualified SlaveThread
@@ -16,6 +17,7 @@ import qualified Control.Concurrent.SSem as SSem
 import qualified Hasql.Backend as Backend
 import qualified Hasql as H
 import qualified Hasql.Postgres as H
+import qualified Data.Scientific as Scientific
 
 
 main = 
@@ -165,6 +167,10 @@ prop_mappingOfFloat (v :: Float) =
 prop_mappingOfDouble (v :: Double) =
   floatEq v (fromJust $ unsafePerformIO $ session1 $ selectSelf v)
 
+prop_mappingOfScientific =
+  forAll scientificGen $ \v ->
+    Just v === do unsafePerformIO $ session1 $ selectSelf v
+
 prop_mappingOfDay (v :: Day) =
   Just v === do unsafePerformIO $ session1 $ selectSelf v
 
@@ -192,6 +198,10 @@ prop_mappingOfUTCTime =
     Just v === do unsafePerformIO $ session1 $ selectSelf v
   where
     gen = UTCTime <$> arbitrary <*> microsDiffTimeGen
+
+scientificGen :: Gen Scientific
+scientificGen =
+  Scientific.scientific <$> arbitrary <*> arbitrary
 
 microsTimeOfDayGen :: Gen TimeOfDay
 microsTimeOfDayGen =

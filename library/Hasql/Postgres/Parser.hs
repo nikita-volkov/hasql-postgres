@@ -26,6 +26,10 @@ labeling :: String -> Parser a -> Parser a
 labeling n p = 
   p <?> n
 
+scientific :: P Scientific
+scientific =
+  A.scientific
+
 float :: P Float
 float =
   realToFrac <$> double
