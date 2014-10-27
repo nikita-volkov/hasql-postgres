@@ -1,4 +1,11 @@
-module Hasql.Postgres (Postgres(..)) where
+module Hasql.Postgres 
+(
+  -- * Settings for Hasql Initialization
+  Postgres(..), 
+  -- * Supported Mappings
+  Backend.Mapping,
+)
+where
 
 import Hasql.Postgres.Prelude
 import qualified Database.PostgreSQL.LibPQ as PQ
@@ -138,6 +145,8 @@ convertTemplate t =
 -- * Mappings
 -------------------------
 
+-- | Maps to the same type as the underlying value, 
+-- encoding the 'Nothing' as /NULL/.
 instance Backend.Mapping Postgres a => Backend.Mapping Postgres (Maybe a) where
   renderValue =
     \case
@@ -148,77 +157,95 @@ instance Backend.Mapping Postgres a => Backend.Mapping Postgres (Maybe a) where
         Backend.renderValue v
   parseResult = traverse (Backend.parseResult . Result . Just) . unpackResult
 
+-- | Maps to \"bool\".
 instance Backend.Mapping Postgres Bool where
   renderValue = mkRenderValue OID.bool Renderer.bool
   parseResult = mkParseResult Parser.bool
 
-instance Backend.Mapping Postgres Char where
-  renderValue = mkRenderValue OID.varchar Renderer.char
-  parseResult = mkParseResult Parser.utf8Char
-
-instance Backend.Mapping Postgres Text where
-  renderValue = mkRenderValue OID.text Renderer.text
-  parseResult = mkParseResult Parser.utf8Text
-
+-- | Maps to \"int8\".
 instance Backend.Mapping Postgres Int where
   renderValue = mkRenderValue OID.int8 Renderer.int
   parseResult = mkParseResult Parser.integral
 
+-- | Maps to \"int2\".
 instance Backend.Mapping Postgres Int8 where
   renderValue = mkRenderValue OID.int2 Renderer.int8
   parseResult = mkParseResult Parser.integral
 
+-- | Maps to \"int2\".
 instance Backend.Mapping Postgres Int16 where
   renderValue = mkRenderValue OID.int2 Renderer.int16
   parseResult = mkParseResult Parser.integral
 
+-- | Maps to \"int4\".
 instance Backend.Mapping Postgres Int32 where
   renderValue = mkRenderValue OID.int4 Renderer.int32
   parseResult = mkParseResult Parser.integral
 
+-- | Maps to \"int8\".
 instance Backend.Mapping Postgres Int64 where
   renderValue = mkRenderValue OID.int8 Renderer.int64
   parseResult = mkParseResult Parser.integral
 
+-- | Maps to \"int8\".
 instance Backend.Mapping Postgres Word where
   renderValue = mkRenderValue OID.int8 Renderer.word
   parseResult = mkParseResult Parser.unsignedIntegral
 
+-- | Maps to \"int2\".
 instance Backend.Mapping Postgres Word8 where
   renderValue = mkRenderValue OID.int2 Renderer.word8
   parseResult = mkParseResult Parser.unsignedIntegral
 
+-- | Maps to \"int4\".
 instance Backend.Mapping Postgres Word16 where
   renderValue = mkRenderValue OID.int4 Renderer.word16
   parseResult = mkParseResult Parser.unsignedIntegral
 
+-- | Maps to \"int8\".
 instance Backend.Mapping Postgres Word32 where
   renderValue = mkRenderValue OID.int8 Renderer.word32
   parseResult = mkParseResult Parser.unsignedIntegral
 
+-- | Maps to \"int8\".
 instance Backend.Mapping Postgres Word64 where
   renderValue = mkRenderValue OID.int8 Renderer.word64
   parseResult = mkParseResult Parser.unsignedIntegral
 
+-- | Maps to \"date\".
 instance Backend.Mapping Postgres Day where
   renderValue = mkRenderValue OID.date Renderer.day
   parseResult = mkParseResult Parser.day
 
+-- | Maps to \"time\".
 instance Backend.Mapping Postgres TimeOfDay where
   renderValue = mkRenderValue OID.time Renderer.timeOfDay
   parseResult = mkParseResult Parser.timeOfDay
 
+-- | Maps to \"timestamp\".
 instance Backend.Mapping Postgres LocalTime where
   renderValue = mkRenderValue OID.timestamp Renderer.localTime
   parseResult = mkParseResult Parser.localTime
 
+-- | Maps to \"timestamptz\".
 instance Backend.Mapping Postgres ZonedTime where
   renderValue = mkRenderValue OID.timestamptz Renderer.zonedTime 
   parseResult = mkParseResult Parser.zonedTime 
 
+-- | Maps to \"timestamp\".
 instance Backend.Mapping Postgres UTCTime where
   renderValue = mkRenderValue OID.timestamp Renderer.utcTime
   parseResult = mkParseResult Parser.utcTime
+
+-- | Maps to \"varchar\".
+instance Backend.Mapping Postgres Char where
+  renderValue = mkRenderValue OID.varchar Renderer.char
+  parseResult = mkParseResult Parser.utf8Char
+
+-- | Maps to \"text\".
+instance Backend.Mapping Postgres Text where
+  renderValue = mkRenderValue OID.text Renderer.text
+  parseResult = mkParseResult Parser.utf8Text
 
 
 -- |
