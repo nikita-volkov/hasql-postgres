@@ -9,7 +9,6 @@ import Hasql
 import Hasql.Postgres (Postgres(..))
 import Data.Text (Text)
 import Data.Time
-import Data.Scientific (Scientific)
 import qualified Data.Text
 import qualified ListT
 import qualified SlaveThread
@@ -19,6 +18,8 @@ import qualified Hasql as H
 import qualified Hasql.Postgres as H
 import qualified Data.Scientific as Scientific
 
+
+type Scientific = Scientific.Scientific
 
 main = 
   htfMain $ htf_thisModulesTests
@@ -234,8 +235,9 @@ session1 =
     backendSettings = Postgres "localhost" 5432 "postgres" "" "postgres"
     poolSettings = fromJust $ sessionSettings 6 30
 
-floatEq :: RealFrac a => Show a => a -> a -> Bool
+floatEq :: RealFrac a => Show a => a -> a -> Property
 floatEq a b =
-  a + error > b && a - error < b
+  counterexample (show a ++ " /~ " ++ show b) $
+    a + error >= b && a - error <= b
   where
-    error = 1 / 100
+    error = max a 1 / 100
