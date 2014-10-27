@@ -1,9 +1,6 @@
 module Hasql.Postgres 
 (
-  -- * Settings for Hasql Initialization
   Postgres(..), 
-  -- * Supported Mappings
-  Backend.Mapping,
 )
 where
 
