@@ -267,6 +267,16 @@ instance Backend.Mapping Postgres LazyText where
   renderValue = mkRenderValue PQ.Text OID.text Renderer.lazyText
   parseResult = mkParseResult Parser.utf8LazyText
 
+-- | Maps to \"bytea\".
+instance Backend.Mapping Postgres ByteString where
+  renderValue = mkRenderValue PQ.Binary OID.bytea Renderer.byteString
+  parseResult = mkParseResult Parser.byteString
+
+-- | Maps to \"bytea\".
+instance Backend.Mapping Postgres LazyByteString where
+  renderValue = mkRenderValue PQ.Binary OID.bytea Renderer.lazyByteString
+  parseResult = mkParseResult Parser.lazyByteString
+
 
 -- |
 -- Make a 'renderValue' function.

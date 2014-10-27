@@ -10,6 +10,10 @@ import Hasql.Postgres (Postgres(..))
 import Data.Time
 import qualified Data.Text
 import qualified Data.Text.Lazy
+import qualified Data.ByteString
+import qualified Data.ByteString.Char8
+import qualified Data.ByteString.Lazy
+import qualified Data.ByteString.Lazy.Char8
 import qualified ListT
 import qualified SlaveThread
 import qualified Control.Concurrent.SSem as SSem
@@ -21,6 +25,8 @@ import qualified Data.Scientific as Scientific
 
 type Text = Data.Text.Text
 type LazyText = Data.Text.Lazy.Text
+type ByteString = Data.ByteString.ByteString
+type LazyByteString = Data.ByteString.Lazy.ByteString
 type Scientific = Scientific.Scientific
 
 main = 
@@ -137,6 +143,12 @@ prop_mappingOfText (v :: Text) =
 prop_mappingOfLazyText (v :: LazyText) =
   (isNothing $ Data.Text.Lazy.find (== '\NUL') v) ==>
     Just v === do unsafePerformIO $ session1 $ selectSelf v
+
+prop_mappingOfByteString (v :: ByteString) =
+  Just v === do unsafePerformIO $ session1 $ selectSelf v
+
+prop_mappingOfLazyByteString (v :: LazyByteString) =
+  Just v === do unsafePerformIO $ session1 $ selectSelf v
 
 prop_mappingOfInt (v :: Int) =
   Just v === do unsafePerformIO $ session1 $ selectSelf v

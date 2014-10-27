@@ -49,7 +49,8 @@ open s =
       [ "SET standard_conforming_strings TO on",
         "SET datestyle TO ISO",
         "SET client_encoding = 'UTF8'",
-        "SET client_min_messages TO WARNING" ]
+        "SET client_min_messages TO WARNING",
+        "SET bytea_output = 'hex'" ]
     return c
 
 

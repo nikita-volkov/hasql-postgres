@@ -4,11 +4,13 @@ import Hasql.Postgres.Prelude hiding (take)
 import Data.Attoparsec.ByteString
 import Data.Attoparsec.ByteString.Char8 hiding (double)
 import qualified Data.ByteString
+import qualified Data.ByteString.Lazy
 import qualified Data.Text
 import qualified Data.Text.Encoding
 import qualified Data.Text.Lazy
 import qualified Data.Text.Lazy.Encoding
 import qualified Data.Attoparsec.ByteString.Char8 as A
+import qualified Database.PostgreSQL.LibPQ as PQ
 
 
 type P = Parser
@@ -43,6 +45,16 @@ bool =
   labeling "bool" $
     ((string "true" <|> string "t" <|> string "True" <|> string "1") *> pure True) <|>
     ((string "false" <|> string "f" <|> string "False" <|> string "0") *> pure False)
+
+byteString :: P ByteString
+byteString =
+  labeling "byteString" $
+    takeByteString >>= maybe (fail "Improper encoding") return . unsafePerformIO . PQ.unescapeBytea
+
+lazyByteString :: P LazyByteString
+lazyByteString =
+  labeling "lazyByteString" $
+    Data.ByteString.Lazy.fromStrict <$> byteString
 
 utf8Char :: P Char
 utf8Char =

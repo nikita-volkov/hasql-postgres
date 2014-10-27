@@ -46,6 +46,9 @@ string :: R String =
 byteString :: R ByteString = 
   B.byteString
 
+lazyByteString :: R LazyByteString = 
+  B.lazyByteString
+
 text :: R Text =
   byteString . T.encodeUtf8
 
