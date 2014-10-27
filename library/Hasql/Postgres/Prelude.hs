@@ -36,10 +36,6 @@ import Data.Text as Exports (Text)
 -------------------------
 import Data.ByteString as Exports (ByteString)
 
--- decimal
--------------------------
-import Data.Decimal as Exports (Decimal, DecimalRaw)
-
 -- scientific
 -------------------------
 import Data.Scientific as Exports (Scientific)

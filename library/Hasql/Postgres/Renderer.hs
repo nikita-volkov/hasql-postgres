@@ -106,21 +106,6 @@ float :: R Float =
 double :: R Double =
   B.doubleDec
 
-decimalRawInt32 :: R (DecimalRaw Int32) =
-  ascii
-
-decimalRawInt64 :: R (DecimalRaw Int64) =
-  ascii
-
-decimalRawWord32 :: R (DecimalRaw Word32) =
-  ascii
-
-decimalRawWord64 :: R (DecimalRaw Word64) =
-  ascii
-
-decimal :: R Decimal =
-  ascii
-
 pico :: R Pico =
   B.string7 . showFixed True
 
