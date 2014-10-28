@@ -258,4 +258,4 @@ floatEq a b =
   counterexample (show a ++ " /~ " ++ show b) $
     a + error >= b && a - error <= b
   where
-    error = max a 1 / 100
+    error = max (abs a) 1 / 100
