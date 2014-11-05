@@ -184,6 +184,19 @@ instance (Backend.Mapping Postgres a, Renderer.Renderable a, Parser.Parsable a, 
   parseResult = 
     mkParseResult (Parser.parser Nothing)
 
+-- |
+-- Maps to Postgres arrays. 
+-- 
+-- Please note that since @String@ is just an alias to @[Char]@,
+-- it will be mapped to an array of characters. 
+-- If you want to map to a textual type use @Text@ instead.
+instance (Backend.Mapping Postgres a, Renderer.Renderable a, Parser.Parsable a, OIDMapping.OIDMapping a) => 
+         Backend.Mapping Postgres [a] where
+  renderValue = 
+    mkRenderValue PQ.Text (OIDMapping.identifyOID (undefined :: [a])) (Renderer.renderer Nothing)
+  parseResult = 
+    mkParseResult (Parser.parser Nothing)
+
 let
   types =
     [ ''Bool,

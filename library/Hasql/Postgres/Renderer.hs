@@ -175,12 +175,16 @@ instance Renderable a => Renderable (Maybe a) where
   renderer q v =
     maybe (string7 "NULL") (renderer q) v
 
-instance Renderable a => Renderable (Vector a) where
+instance Renderable a => Renderable [a] where
   renderer _ v =
     execWriter $ do
       tell $ char7 '{'
-      tell $ mconcat $ intersperse (string7 ", ") $ map (renderer (Just '"')) $ Vector.toList v
+      tell $ mconcat $ intersperse (string7 ", ") $ map (renderer (Just '"')) v
       tell $ char7 '}'
+
+instance Renderable a => Renderable (Vector a) where
+  renderer _ =
+    renderer $bottom . Vector.toList
 
 instance Renderable Bool where
   renderer q =

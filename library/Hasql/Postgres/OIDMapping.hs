@@ -14,6 +14,10 @@ instance OIDMapping a => OIDMapping (Maybe a) where
   identifyOID = const $ identifyOID (undefined :: a)
   identifyArrayOID = const $ identifyArrayOID (undefined :: a)
 
+instance OIDMapping a => OIDMapping [a] where
+  identifyOID = const $ identifyArrayOID (undefined :: a)
+  identifyArrayOID = identifyOID
+
 instance OIDMapping a => OIDMapping (Vector a) where
   identifyOID = const $ identifyArrayOID (undefined :: a)
   identifyArrayOID = identifyOID
