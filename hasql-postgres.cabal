@@ -64,6 +64,8 @@ library
   exposed-modules:
     Hasql.Postgres
   build-depends:
+    -- template haskell:
+    template-haskell == 2.*,
     -- parsers:
     attoparsec == 0.12.*,
     -- database:
@@ -112,6 +114,8 @@ test-suite library-tests
     quickcheck-instances == 0.3.*,
     QuickCheck == 2.7.*,
     HUnit == 1.2.*,
+    -- template haskell:
+    template-haskell == 2.*,
     -- parsers:
     attoparsec == 0.12.*,
     -- database:
