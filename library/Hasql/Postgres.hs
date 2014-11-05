@@ -18,6 +18,7 @@ import qualified Hasql.Postgres.Renderer as Renderer
 import qualified Hasql.Postgres.OID as OID
 import qualified Data.Text.Encoding as Text
 import qualified ListT
+import qualified Language.Haskell.TH as TH
 
 
 -- |
@@ -142,150 +143,8 @@ convertTemplate t =
 -- * Mappings
 -------------------------
 
--- | Maps to the same type as the underlying value, 
--- encoding the 'Nothing' as /NULL/.
-instance Backend.Mapping Postgres a => Backend.Mapping Postgres (Maybe a) where
-  renderValue =
-    \case
-      Nothing -> 
-        case Backend.renderValue ($bottom :: a) of
-          StatementArgument (oid, _) -> StatementArgument (oid, Nothing)
-      Just v ->
-        Backend.renderValue v
-  parseResult = traverse (Backend.parseResult . Result . Just) . unpackResult
-
-instance (Backend.Mapping Postgres a, Renderer.Renderable a, Parser.Parsable a, OID.Identifiable a) => 
-         Backend.Mapping Postgres (Vector a) where
-  renderValue = 
-    mkRenderValue PQ.Text (OID.identifyOID (undefined :: Vector a)) (Renderer.renderer Nothing)
-  parseResult = 
-    mkParseResult (Parser.parser Nothing)
-
--- | Maps to \"bool\".
-instance Backend.Mapping Postgres Bool where
-  renderValue = mkRenderValue PQ.Text OID.bool Renderer.bool
-  parseResult = mkParseResult Parser.bool
-
--- | Maps to \"int8\".
-instance Backend.Mapping Postgres Int where
-  renderValue = mkRenderValue PQ.Text OID.int8 Renderer.int
-  parseResult = mkParseResult Parser.integral
-
--- | Maps to \"int2\".
-instance Backend.Mapping Postgres Int8 where
-  renderValue = mkRenderValue PQ.Text OID.int2 Renderer.int8
-  parseResult = mkParseResult Parser.integral
-
--- | Maps to \"int2\".
-instance Backend.Mapping Postgres Int16 where
-  renderValue = mkRenderValue PQ.Text OID.int2 Renderer.int16
-  parseResult = mkParseResult Parser.integral
-
--- | Maps to \"int4\".
-instance Backend.Mapping Postgres Int32 where
-  renderValue = mkRenderValue PQ.Text OID.int4 Renderer.int32
-  parseResult = mkParseResult Parser.integral
-
--- | Maps to \"int8\".
-instance Backend.Mapping Postgres Int64 where
-  renderValue = mkRenderValue PQ.Text OID.int8 Renderer.int64
-  parseResult = mkParseResult Parser.integral
-
--- | Maps to \"int8\".
-instance Backend.Mapping Postgres Word where
-  renderValue = mkRenderValue PQ.Text OID.int8 Renderer.word
-  parseResult = mkParseResult Parser.unsignedIntegral
-
--- | Maps to \"int2\".
-instance Backend.Mapping Postgres Word8 where
-  renderValue = mkRenderValue PQ.Text OID.int2 Renderer.word8
-  parseResult = mkParseResult Parser.unsignedIntegral
-
--- | Maps to \"int4\".
-instance Backend.Mapping Postgres Word16 where
-  renderValue = mkRenderValue PQ.Text OID.int4 Renderer.word16
-  parseResult = mkParseResult Parser.unsignedIntegral
-
--- | Maps to \"int8\".
-instance Backend.Mapping Postgres Word32 where
-  renderValue = mkRenderValue PQ.Text OID.int8 Renderer.word32
-  parseResult = mkParseResult Parser.unsignedIntegral
-
--- | Maps to \"int8\".
-instance Backend.Mapping Postgres Word64 where
-  renderValue = mkRenderValue PQ.Text OID.int8 Renderer.word64
-  parseResult = mkParseResult Parser.unsignedIntegral
-
--- | Maps to \"float4\".
-instance Backend.Mapping Postgres Float where
-  renderValue = mkRenderValue PQ.Text OID.float4 Renderer.float
-  parseResult = mkParseResult Parser.float
-
--- | Maps to \"float8\".
-instance Backend.Mapping Postgres Double where
-  renderValue = mkRenderValue PQ.Text OID.float8 Renderer.double
-  parseResult = mkParseResult Parser.double
-
--- | Maps to \"numeric\".
-instance Backend.Mapping Postgres Scientific where
-  renderValue = mkRenderValue PQ.Text OID.numeric Renderer.scientific
-  parseResult = mkParseResult Parser.scientific
-
--- | Maps to \"date\".
-instance Backend.Mapping Postgres Day where
-  renderValue = mkRenderValue PQ.Text OID.date Renderer.day
-  parseResult = mkParseResult Parser.day
-
--- | Maps to \"time\".
-instance Backend.Mapping Postgres TimeOfDay where
-  renderValue = mkRenderValue PQ.Text OID.time Renderer.timeOfDay
-  parseResult = mkParseResult Parser.timeOfDay
-
--- | Maps to \"timestamp\".
-instance Backend.Mapping Postgres LocalTime where
-  renderValue = mkRenderValue PQ.Text OID.timestamp Renderer.localTime
-  parseResult = mkParseResult Parser.localTime
-
--- | Maps to \"timestamptz\".
-instance Backend.Mapping Postgres ZonedTime where
-  renderValue = mkRenderValue PQ.Text OID.timestamptz Renderer.zonedTime 
-  parseResult = mkParseResult Parser.zonedTime 
-
--- | Maps to \"timestamp\".
-instance Backend.Mapping Postgres UTCTime where
-  renderValue = mkRenderValue PQ.Text OID.timestamp Renderer.utcTime
-  parseResult = mkParseResult Parser.utcTime
-
--- | Maps to \"varchar\".
-instance Backend.Mapping Postgres Char where
-  renderValue = mkRenderValue PQ.Text OID.varchar Renderer.char
-  parseResult = mkParseResult Parser.utf8Char
-
--- -- | Maps to \"text\".
--- instance Backend.Mapping Postgres String where
---   renderValue = mkRenderValue PQ.Text OID.text Renderer.string
---   parseResult = mkParseResult Parser.utf8String
-
--- | Maps to \"text\".
-instance Backend.Mapping Postgres Text where
-  renderValue = mkRenderValue PQ.Text OID.text Renderer.text
-  parseResult = mkParseResult Parser.utf8Text
-
--- | Maps to \"text\".
-instance Backend.Mapping Postgres LazyText where
-  renderValue = mkRenderValue PQ.Text OID.text Renderer.lazyText
-  parseResult = mkParseResult Parser.utf8LazyText
-
--- | Maps to \"bytea\".
-instance Backend.Mapping Postgres ByteString where
-  renderValue = mkRenderValue PQ.Binary OID.bytea Renderer.byteString
-  parseResult = mkParseResult Parser.byteString
-
--- | Maps to \"bytea\".
-instance Backend.Mapping Postgres LazyByteString where
-  renderValue = mkRenderValue PQ.Binary OID.bytea Renderer.lazyByteString
-  parseResult = mkParseResult Parser.lazyByteString
-
+-- ** Helpers
+-------------------------
 
 -- |
 -- Make a 'renderValue' function.
@@ -301,3 +160,65 @@ mkParseResult p (Result r) =
     r' <- maybe (Left "Null result") Right r
     left (\t -> "Input: " <> Text.decodeLatin1 r' <> ". Error: " <> t) $ 
       Parser.run r' p
+
+-- ** Instances
+-------------------------
+
+-- | Maps to the same type as the underlying value, 
+-- encoding the 'Nothing' as /NULL/.
+instance Backend.Mapping Postgres a => Backend.Mapping Postgres (Maybe a) where
+  renderValue =
+    \case
+      Nothing -> 
+        case Backend.renderValue ($bottom :: a) of
+          StatementArgument (oid, _) -> StatementArgument (oid, Nothing)
+      Just v ->
+        Backend.renderValue v
+  parseResult = 
+    traverse (Backend.parseResult . Result . Just) . unpackResult
+
+instance (Backend.Mapping Postgres a, Renderer.Renderable a, Parser.Parsable a, OID.Identifiable a) => 
+         Backend.Mapping Postgres (Vector a) where
+  renderValue = 
+    mkRenderValue PQ.Text (OID.identifyOID (undefined :: Vector a)) (Renderer.renderer Nothing)
+  parseResult = 
+    mkParseResult (Parser.parser Nothing)
+
+let
+  types =
+    [ ''Bool,
+      ''Int,
+      ''Int8,
+      ''Int16,
+      ''Int32,
+      ''Int64,
+      ''Word,
+      ''Word8,
+      ''Word16,
+      ''Word32,
+      ''Word64,
+      ''Float,
+      ''Double,
+      ''Scientific,
+      ''Day,
+      ''TimeOfDay,
+      ''LocalTime,
+      ''ZonedTime,
+      ''UTCTime,
+      ''Char,
+      ''Text,
+      ''LazyText,
+      ''ByteString,
+      ''LazyByteString ]
+  in
+    fmap concat $ forM types $ \t ->
+      [d|
+        instance Backend.Mapping Postgres $(TH.conT t) where
+          renderValue = 
+            mkRenderValue 
+              PQ.Text 
+              (OID.identifyOID (undefined :: $(TH.conT t)))
+              (Renderer.renderer Nothing)
+          parseResult =
+            mkParseResult (Parser.parser Nothing)
+      |]
