@@ -365,6 +365,7 @@ unescapedWord8 =
 unescapedByteStringBuilder :: P Data.ByteString.Builder.Builder
 unescapedByteStringBuilder =
   labeling "unescapedByteStringBuilder" $ 
+    (<|> pure mempty) $
     (<>) <$> (Data.ByteString.Builder.word8 <$> unescapedWord8) <*>
              (unescapedByteStringBuilder <|> pure mempty)
 
@@ -393,6 +394,7 @@ unescapedUTF8Char =
 unescapedTextBuilder :: P Data.Text.Lazy.Builder.Builder
 unescapedTextBuilder =
   labeling "unescapedTextBuilder" $ 
+    (<|> pure mempty) $
     (<>) <$> (Data.Text.Lazy.Builder.singleton <$> unescapedUTF8Char) <*>
              (unescapedTextBuilder <|> pure mempty)
 
