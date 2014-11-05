@@ -138,7 +138,7 @@ timeZone =
   do
     (p, h, m, s) <- timeZoneTuple
     return $!
-      minutesToTimeZone ((if p then negate else id) (60 * h + m))
+      minutesToTimeZone ((if p then id else negate) (60 * h + m))
 
 -- |
 -- Takes seconds in timezone into account.
@@ -154,7 +154,7 @@ zonedTime =
         then \t -> timeToTimeOfDay $ timeOfDayToTime t - fromIntegral s
         else id
     composeTimezone p h m =
-      minutesToTimeZone ((if p then negate else id) (60 * h + m))
+      minutesToTimeZone ((if p then id else negate) (60 * h + m))
 
 utcTime :: P UTCTime
 utcTime =
