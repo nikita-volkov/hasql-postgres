@@ -6,10 +6,10 @@ synopsis:
   A "PostgreSQL" backend for the "hasql" library
 description:
   This library provides a \"PostgreSQL\" driver for 
-  <http://hackage.haskell.org/package/hasql the \"hasql\" library>.
+  <http://hackage.haskell.org/package/hasql the "hasql" library>.
   .
-  The included benchmarks prove it to be performing up to 1.5 times faster then
-  the \"postgresql-simple\" library.
+  The included benchmarks prove it to be performing up to 1.5x times faster than
+  \"postgresql-simple\" and up to 3.5x times faster than \"HDBC\".
 category:
   Database
 homepage:
