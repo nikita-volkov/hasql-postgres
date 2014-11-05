@@ -202,88 +202,46 @@ instance Parsable Bool where
       Just q  -> char q *> bool <* char q
 
 instance Parsable Integer where
-  parser =
-    \case
-      Nothing -> signed decimal
-      Just q  -> signed decimal
+  parser = const $ signed decimal
 
 instance Parsable Int where
-  parser =
-    \case
-      Nothing -> signed decimal
-      Just q  -> signed decimal
+  parser = const $ signed decimal
 
 instance Parsable Int8 where
-  parser =
-    \case
-      Nothing -> signed decimal
-      Just q  -> signed decimal
+  parser = const $ signed decimal
 
 instance Parsable Int16 where
-  parser =
-    \case
-      Nothing -> signed decimal
-      Just q  -> signed decimal
+  parser = const $ signed decimal
 
 instance Parsable Int32 where
-  parser =
-    \case
-      Nothing -> signed decimal
-      Just q  -> signed decimal
+  parser = const $ signed decimal
 
 instance Parsable Int64 where
-  parser =
-    \case
-      Nothing -> signed decimal
-      Just q  -> signed decimal
+  parser = const $ signed decimal
 
 instance Parsable Word where
-  parser =
-    \case
-      Nothing -> decimal
-      Just q  -> decimal
+  parser = const decimal
 
 instance Parsable Word8 where
-  parser =
-    \case
-      Nothing -> decimal
-      Just q  -> decimal
+  parser = const decimal
 
 instance Parsable Word16 where
-  parser =
-    \case
-      Nothing -> decimal
-      Just q  -> decimal
+  parser = const decimal
 
 instance Parsable Word32 where
-  parser =
-    \case
-      Nothing -> decimal
-      Just q  -> decimal
+  parser = const decimal
 
 instance Parsable Word64 where
-  parser =
-    \case
-      Nothing -> decimal
-      Just q  -> decimal
+  parser = const decimal
 
 instance Parsable Float where
-  parser =
-    \case
-      Nothing -> float
-      Just q  -> float
+  parser = const float
 
 instance Parsable Double where
-  parser =
-    \case
-      Nothing -> double
-      Just q  -> double
+  parser = const double
 
 instance Parsable Scientific where
-  parser =
-    \case
-      Nothing -> A.scientific
-      Just q  -> A.scientific
+  parser = const A.scientific
 
 instance Parsable Day where
   parser =
