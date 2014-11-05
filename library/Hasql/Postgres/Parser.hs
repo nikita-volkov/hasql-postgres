@@ -109,27 +109,27 @@ integralDigit =
 day :: P Day
 day =
   do
-    y <- unsignedIntegral
+    y <- decimal
     charUnit '-'
-    m <- unsignedIntegral
+    m <- decimal
     charUnit '-'
-    d <- unsignedIntegral
+    d <- decimal
     maybe empty return (fromGregorianValid y m d)
 
 timeOfDay :: P TimeOfDay
 timeOfDay =
   do
-    h <- unsignedIntegral
+    h <- decimal
     charUnit ':'
-    m <- unsignedIntegral
+    m <- decimal
     charUnit ':'
-    s <- unsignedIntegral
+    s <- decimal
     p <- (charUnit '.' *> decimals) <|> pure 0
     maybe empty return 
       (makeTimeOfDayValid h m (fromIntegral s + p))
   where
     decimals = do
-      (b, i) <- match unsignedIntegral
+      (b, i) <- match decimal
       return $ fromIntegral i / (10 ^ Data.ByteString.length b)
 
 localTime :: P LocalTime
@@ -140,9 +140,9 @@ timeZoneTuple :: P (Bool, Int, Int, Int)
 timeZoneTuple =
   do
     p <- (charUnit '+' *> pure True) <|> (charUnit '-' *> pure False)
-    h <- unsignedIntegral
-    m <- (charUnit ':' *> unsignedIntegral) <|> pure 0
-    s <- (charUnit ':' *> unsignedIntegral) <|> pure 0
+    h <- decimal
+    m <- (charUnit ':' *> decimal) <|> pure 0
+    s <- (charUnit ':' *> decimal) <|> pure 0
     return $! (p, h, m, s)
 
 timeZone :: P TimeZone
