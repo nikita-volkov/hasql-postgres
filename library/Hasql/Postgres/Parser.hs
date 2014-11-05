@@ -80,7 +80,9 @@ utf8LazyText =
 
 utf8Text :: P Text
 utf8Text =
-  Data.Text.Lazy.toStrict <$> utf8LazyText
+  labeling "utf8Text" $ do
+    b <- takeByteString
+    either (const empty) return $ Data.Text.Encoding.decodeUtf8' b
 
 charUnit :: Char -> P ()
 charUnit c = 
