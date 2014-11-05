@@ -6,6 +6,7 @@ import Data.Attoparsec.ByteString.Char8 hiding (double)
 import qualified Data.ByteString
 import qualified Data.ByteString.Builder
 import qualified Data.ByteString.Lazy
+import qualified Data.ByteString.Base16
 import qualified Data.Text
 import qualified Data.Text.Encoding
 import qualified Data.Text.Lazy
@@ -48,16 +49,6 @@ bool =
   labeling "bool" $
     ((string "true" <|> string "t" <|> string "True" <|> string "1") *> pure True) <|>
     ((string "false" <|> string "f" <|> string "False" <|> string "0") *> pure False)
-
-byteString :: P ByteString
-byteString =
-  labeling "byteString" $
-    takeByteString >>= maybe (fail "Improper encoding") return . unsafePerformIO . PQ.unescapeBytea
-
-lazyByteString :: P LazyByteString
-lazyByteString =
-  labeling "lazyByteString" $
-    Data.ByteString.Lazy.fromStrict <$> byteString
 
 utf8Char :: P Char
 utf8Char =
@@ -295,15 +286,18 @@ instance Parsable LazyText where
 instance Parsable ByteString where
   parser =
     \case
-      Nothing -> byteString
+      Nothing -> Data.ByteString.Lazy.toStrict . Data.ByteString.Builder.toLazyByteString <$>
+                 hexByteStringBuilder
       Just q  -> Data.ByteString.Lazy.toStrict . Data.ByteString.Builder.toLazyByteString <$>
-                 quotedByteStringBuilder q
+                 (char q *> hexByteStringBuilder <* char q)
 
 instance Parsable LazyByteString where
   parser =
     \case
-      Nothing -> lazyByteString
-      Just q  -> Data.ByteString.Builder.toLazyByteString <$> quotedByteStringBuilder q
+      Nothing -> Data.ByteString.Builder.toLazyByteString <$> 
+                 hexByteStringBuilder
+      Just q  -> Data.ByteString.Builder.toLazyByteString <$> 
+                 (char q *> hexByteStringBuilder <* char q)
 
 
 -- * Unescaping
@@ -320,15 +314,6 @@ unescapedWord8 =
     if w == $([|fromIntegral $ ord '\\'|])
       then anyWord8
       else return w
-
-quotedByteStringBuilder :: Char -> P Data.ByteString.Builder.Builder
-quotedByteStringBuilder q =
-  labeling "quotedByteStringBuilder" $ 
-    char q *> loop
-  where
-    loop =
-      (char q *> pure mempty) <|>
-      ((<>) <$> (Data.ByteString.Builder.word8 <$> unescapedWord8) <*> loop)
 
 unescapedUTF8Char :: P Char
 unescapedUTF8Char =
@@ -352,5 +337,18 @@ quotedTextBuilder q =
     loop =
       (char q *> pure mempty) <|>
       ((<>) <$> (Data.Text.Lazy.Builder.singleton <$> unescapedUTF8Char) <*> loop)
-    
+
+hexByteStringBuilder :: P Data.ByteString.Builder.Builder
+hexByteStringBuilder =
+  labeling "hexByteStringBuilder" $ 
+    string "\\x" *> loop
+  where
+    loop =
+      ((<>) <$> singleton <*> loop) <|> pure mempty
+    singleton = do
+      (c, r) <- fmap Data.ByteString.Base16.decode (take 2)
+      when (Data.ByteString.length r > 0) $
+        fail $ "Invalid hex encoding: " <> show r
+      return $ Data.ByteString.Builder.byteString c
+
 
