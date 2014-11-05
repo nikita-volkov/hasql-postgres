@@ -284,25 +284,26 @@ instance Parsable Text where
   parser =
     \case
       Nothing -> utf8Text
-      Just q  -> char q *> unescapedText <* char q
+      Just q  -> Data.Text.Lazy.toStrict . Data.Text.Lazy.Builder.toLazyText <$> quotedTextBuilder q
 
 instance Parsable LazyText where
   parser =
     \case
       Nothing -> utf8LazyText
-      Just q  -> char q *> unescapedLazyText <* char q
+      Just q  -> Data.Text.Lazy.Builder.toLazyText <$> quotedTextBuilder q
 
 instance Parsable ByteString where
   parser =
     \case
       Nothing -> byteString
-      Just q  -> char q *> unescapedByteString <* char q
+      Just q  -> Data.ByteString.Lazy.toStrict . Data.ByteString.Builder.toLazyByteString <$>
+                 quotedByteStringBuilder q
 
 instance Parsable LazyByteString where
   parser =
     \case
       Nothing -> lazyByteString
-      Just q  -> char q *> unescapedLazyByteString <* char q
+      Just q  -> Data.ByteString.Builder.toLazyByteString <$> quotedByteStringBuilder q
 
 
 -- * Unescaping
@@ -320,20 +321,14 @@ unescapedWord8 =
       then anyWord8
       else return w
 
-unescapedByteStringBuilder :: P Data.ByteString.Builder.Builder
-unescapedByteStringBuilder =
-  labeling "unescapedByteStringBuilder" $ 
-    (<|> pure mempty) $
-    (<>) <$> (Data.ByteString.Builder.word8 <$> unescapedWord8) <*>
-             (unescapedByteStringBuilder <|> pure mempty)
-
-unescapedLazyByteString :: P LazyByteString
-unescapedLazyByteString =
-  Data.ByteString.Builder.toLazyByteString <$> unescapedByteStringBuilder
-
-unescapedByteString :: P ByteString
-unescapedByteString =
-  Data.ByteString.Lazy.toStrict <$> unescapedLazyByteString
+quotedByteStringBuilder :: Char -> P Data.ByteString.Builder.Builder
+quotedByteStringBuilder q =
+  labeling "quotedByteStringBuilder" $ 
+    char q *> loop
+  where
+    loop =
+      (char q *> pure mempty) <|>
+      ((<>) <$> (Data.ByteString.Builder.word8 <$> unescapedWord8) <*> loop)
 
 unescapedUTF8Char :: P Char
 unescapedUTF8Char =
@@ -349,19 +344,13 @@ unescapedUTF8Char =
                 else fail "Failed to decode 4 bytes"
         in loop 0 mempty
 
-unescapedTextBuilder :: P Data.Text.Lazy.Builder.Builder
-unescapedTextBuilder =
-  labeling "unescapedTextBuilder" $ 
-    (<|> pure mempty) $
-    (<>) <$> (Data.Text.Lazy.Builder.singleton <$> unescapedUTF8Char) <*>
-             (unescapedTextBuilder <|> pure mempty)
-
-unescapedLazyText :: P LazyText
-unescapedLazyText =
-  Data.Text.Lazy.Builder.toLazyText <$> unescapedTextBuilder
-
-unescapedText :: P Text
-unescapedText =
-  Data.Text.Lazy.toStrict <$> unescapedLazyText
-
+quotedTextBuilder :: Char -> P Data.Text.Lazy.Builder.Builder
+quotedTextBuilder q =
+  labeling "quotedTextBuilder" $ 
+    char q *> loop
+  where
+    loop =
+      (char q *> pure mempty) <|>
+      ((<>) <$> (Data.Text.Lazy.Builder.singleton <$> unescapedUTF8Char) <*> loop)
+    
 
