@@ -167,6 +167,26 @@ test_mappingOfVector4 =
           Vector.fromList [Nothing, Just 'c']
         ]
 
+test_mappingOfVector5 =
+  session1 $ do
+    validMappingSession v1
+  where
+    v1 =
+      Vector.fromList
+        [
+          " 'a' \"b\" \\c\\ ф" :: ByteString
+        ]
+
+prop_mappingOfVectorOverByteString (list :: [ByteString]) =
+  mappingProp v
+  where
+    v = Vector.fromList list
+
+prop_mappingOfVectorOverLazyByteString (list :: [LazyByteString]) =
+  mappingProp v
+  where
+    v = Vector.fromList list
+
 test_mappingOfBool =
   session1 $ do
     validMappingSession True
@@ -179,73 +199,73 @@ test_mappingOfUTF8Char =
 -- Postgres does not allow the '/NUL' character in text data
 prop_mappingOfChar (v :: Char) =
   (v /= '\NUL') ==>
-    Just v === do unsafePerformIO $ session1 $ selectSelf v
+    mappingProp v
 
 -- Postgres does not allow the '/NUL' character in text data
 prop_mappingOfText (v :: Text) =
   (isNothing $ Data.Text.find (== '\NUL') v) ==>
-    Just v === do unsafePerformIO $ session1 $ selectSelf v
+    mappingProp v
 
 prop_mappingOfLazyText (v :: LazyText) =
   (isNothing $ Data.Text.Lazy.find (== '\NUL') v) ==>
-    Just v === do unsafePerformIO $ session1 $ selectSelf v
+    mappingProp v
 
 prop_mappingOfByteString (v :: ByteString) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfLazyByteString (v :: LazyByteString) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfInt (v :: Int) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfInt8 (v :: Int8) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfInt16 (v :: Int16) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfInt32 (v :: Int32) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfInt64 (v :: Int64) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfWord (v :: Word) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfWord8 (v :: Word8) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfWord16 (v :: Word16) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfWord32 (v :: Word32) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfWord64 (v :: Word64) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfFloat (v :: Float) =
-  floatEq v (fromJust $ unsafePerformIO $ session1 $ selectSelf v)
+  floatEqProp v (fromJust $ unsafePerformIO $ session1 $ selectSelf v)
 
 prop_mappingOfDouble (v :: Double) =
-  floatEq v (fromJust $ unsafePerformIO $ session1 $ selectSelf v)
+  floatEqProp v (fromJust $ unsafePerformIO $ session1 $ selectSelf v)
 
 prop_mappingOfScientific =
   forAll scientificGen $ \v ->
-    Just v === do unsafePerformIO $ session1 $ selectSelf v
+    mappingProp v
 
 prop_mappingOfDay (v :: Day) =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  mappingProp v
 
 prop_mappingOfTimeOfDay (v :: TimeOfDay) =
   forAll microsTimeOfDayGen $ \v -> 
-    Just v === do unsafePerformIO $ session1 $ selectSelf v
+    mappingProp v
 
 prop_mappingOfLocalTime =
   forAll microsLocalTimeGen $ \v -> 
-    Just v === do unsafePerformIO $ session1 $ selectSelf v
+    mappingProp v
 
 prop_mappingOfZonedTime =
   forAll gen $ \v -> 
@@ -260,7 +280,7 @@ prop_mappingOfZonedTime =
 
 prop_mappingOfUTCTime =
   forAll gen $ \v ->
-    Just v === do unsafePerformIO $ session1 $ selectSelf v
+    mappingProp v
   where
     gen = UTCTime <$> arbitrary <*> microsDiffTimeGen
 
@@ -291,7 +311,7 @@ microsDiffTimeGen = do
 -------------------------
 
 selectSelf :: 
-  Backend.Mapping Postgres a => Typeable a => 
+  Backend.Mapping Postgres a => 
   a -> Session Postgres IO (Maybe a)
 selectSelf v =
   tx Nothing $ (fmap . fmap) runIdentity $ single $ [q| SELECT ? |] v
@@ -312,9 +332,13 @@ session1 =
 -- ** Property
 -------------------------
 
-floatEq :: RealFrac a => Show a => a -> a -> Property
-floatEq a b =
+floatEqProp :: RealFrac a => Show a => a -> a -> Property
+floatEqProp a b =
   counterexample (show a ++ " /~ " ++ show b) $
     a + error >= b && a - error <= b
   where
     error = max (abs a) 1 / 100
+
+mappingProp :: (Show a, Eq a, Backend.Mapping Postgres a) => a -> Property
+mappingProp v =
+  Just v === do unsafePerformIO $ session1 $ selectSelf v

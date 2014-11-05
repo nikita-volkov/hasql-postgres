@@ -9,6 +9,8 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BLC
+import qualified Data.ByteString.Base16 as BB16
+import qualified Data.ByteString.Base16.Lazy as BB16L
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
@@ -282,17 +284,15 @@ instance Renderable LazyText where
 
 instance Renderable ByteString where
   renderer =
-    maybe BB.byteString (\q -> quoting q . escaping q)
+    (. encode) . maybe (BB.string7 "\\x" <>) (\q -> quoting q . (BB.string7 "\\\\x" <>))
     where
-      escaping q =
-        BC.foldr (mappend . escapedChar8 q) mempty
+      encode = BB.byteString . BB16.encode
 
 instance Renderable LazyByteString where
   renderer =
-    maybe BB.lazyByteString (\q -> quoting q . escaping q)
+    (. encode) . maybe (BB.string7 "\\x" <>) (\q -> quoting q . (BB.string7 "\\\\x" <>))
     where
-      escaping q =
-        BLC.foldr (mappend . escapedChar8 q) mempty
+      encode = BB.lazyByteString . BB16L.encode
 
 
 -- ** Helpers

@@ -158,7 +158,7 @@ mkParseResult :: Parser.P a -> (Backend.Result Postgres -> Either Text a)
 mkParseResult p (Result r) =
   do
     r' <- maybe (Left "Null result") Right r
-    left (\t -> "Input: " <> Text.decodeLatin1 r' <> ". Error: " <> t) $ 
+    left (\t -> t <> "; Input: " <> (fromString . show) r') $ 
       Parser.run r' p
 
 -- ** Instances

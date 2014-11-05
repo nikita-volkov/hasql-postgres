@@ -21,8 +21,18 @@ type P = Parser
 
 run :: ByteString -> P a -> Either Text a
 run input parser =
-  left fromString $ parseOnly (parser <* endOfInput) input
-
+  onResult $ parse (parser <* endOfInput) input    
+  where
+    onResult =
+      \case
+        Fail remainder contexts message ->
+          Left $ "Message: " <> (fromString . show) message <> "; " <>
+                 "Contexts: " <> (fromString . show) contexts <> "; " <>
+                 "Failing input: " <> (fromString . show) remainder
+        Partial c ->
+          onResult $ c mempty
+        Done _ result ->
+          Right result
 
 -- ** Parser
 -------------------------
@@ -287,17 +297,17 @@ instance Parsable ByteString where
   parser =
     \case
       Nothing -> Data.ByteString.Lazy.toStrict . Data.ByteString.Builder.toLazyByteString <$>
-                 hexByteStringBuilder
+                 (string "\\x" *> hexByteStringBuilder)
       Just q  -> Data.ByteString.Lazy.toStrict . Data.ByteString.Builder.toLazyByteString <$>
-                 (char q *> hexByteStringBuilder <* char q)
+                 (char q *> string "\\\\x" *> hexByteStringBuilder <* char q)
 
 instance Parsable LazyByteString where
   parser =
     \case
       Nothing -> Data.ByteString.Builder.toLazyByteString <$> 
-                 hexByteStringBuilder
+                 (string "\\x" *> hexByteStringBuilder)
       Just q  -> Data.ByteString.Builder.toLazyByteString <$> 
-                 (char q *> hexByteStringBuilder <* char q)
+                 (char q *> string "\\\\x" *> hexByteStringBuilder <* char q)
 
 
 -- * Unescaping
@@ -341,13 +351,13 @@ quotedTextBuilder q =
 hexByteStringBuilder :: P Data.ByteString.Builder.Builder
 hexByteStringBuilder =
   labeling "hexByteStringBuilder" $ 
-    string "\\x" *> loop
+    loop
   where
     loop =
       ((<>) <$> singleton <*> loop) <|> pure mempty
     singleton = do
       (c, r) <- fmap Data.ByteString.Base16.decode (take 2)
-      when (Data.ByteString.length r > 0) $
+      unless (Data.ByteString.null r) $
         fail $ "Invalid hex encoding: " <> show r
       return $ Data.ByteString.Builder.byteString c
 

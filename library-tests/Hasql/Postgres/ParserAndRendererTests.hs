@@ -78,5 +78,15 @@ prop_textDoubleQuoted :: Text -> Property =
   isomorphismProperty (Just '"')
 
 
+prop_byteString :: ByteString -> Property =
+  isomorphismProperty Nothing
+
+prop_byteStringSingleQuoted :: ByteString -> Property =
+  isomorphismProperty (Just '\'')
+
+prop_byteStringDoubleQuoted :: ByteString -> Property =
+  isomorphismProperty (Just '"')
+
+
 isomorphismProperty quotation value =
   Right value === P.run (R.run value (R.renderer quotation)) (P.parser quotation)
