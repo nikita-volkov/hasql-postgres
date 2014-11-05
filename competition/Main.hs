@@ -1,5 +1,7 @@
 import BasePrelude
 import MTLPrelude
+import Control.DeepSeq
+import Control.Monad.Trans.Control
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Time
@@ -14,6 +16,8 @@ import qualified Database.PostgreSQL.Simple.ToField as P
 import qualified Database.PostgreSQL.Simple.FromRow as P
 import qualified Database.PostgreSQL.Simple.ToRow as P
 import qualified Database.PostgreSQL.Simple.Transaction as P
+import qualified Database.HDBC as C
+import qualified Database.HDBC.PostgreSQL as C
 import qualified Test.QuickCheck.Gen as Q
 import qualified Test.QuickCheck.Arbitrary as Q
 import qualified Test.QuickCheck.Instances
@@ -41,8 +45,9 @@ main =
               H.unit $ [H.q|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
           lift $ continue
           replicateM_ 100 $ do
-            H.tx Nothing $ do
+            r <- H.tx Nothing $ do
               H.list $ [H.q|SELECT * FROM a|] :: H.Tx H.Postgres s [(Int, Text, Day)]
+            deepseq r $ return ()
           lift $ pause
 
       subject "postgresql-simple" $ do
@@ -58,9 +63,42 @@ main =
           liftIO $ P.execute c "INSERT INTO a (name, birthday) VALUES (?, ?)" (name, birthday)
         continue
         liftIO $ replicateM_ 100 $ do
-          P.query_ c "SELECT * FROM a" :: IO [(Int, Text, Day)]
+          r <- P.query_ c "SELECT * FROM a" :: IO [(Int, Text, Day)]
+          deepseq r $ return ()
         pause
         liftIO $ P.close c
+
+      subject "HDBC" $ do
+        pause
+        c <- liftIO $ C.connectPostgreSQL $ concat $ intersperse " " $
+               [
+                 "host=" <> host,
+                 "port=" <> show port,
+                 "user=" <> user,
+                 "password=" <> password,
+                 "dbname=" <> db
+               ]
+        liftIO $ C.run c "SET client_min_messages TO WARNING" []
+        liftIO $ C.run c "DROP TABLE IF EXISTS a" []
+        liftIO $ C.run c 
+          "CREATE TABLE a (id SERIAL NOT NULL, \
+                           \name VARCHAR NOT NULL, \
+                           \birthday DATE, \
+                           \PRIMARY KEY (id))"
+          []
+        forM_ rows $ \(name, birthday) -> do
+          liftIO $ C.run c "INSERT INTO a (name, birthday) VALUES (?, ?)" [C.toSql name, C.toSql birthday]
+        liftIO $ C.commit c
+        continue
+        liftIO $ replicateM_ 100 $ do
+          r <- do
+            r <- C.quickQuery c "SELECT * FROM a" []
+            return $ flip map r $ \[id, name, birthday] ->
+              (C.fromSql id :: Int, C.fromSql name :: Text, C.fromSql birthday :: Day) 
+          deepseq r $ return ()
+        pause
+        liftIO $ C.disconnect c
+
 
     standoff "Templates and rendering" $ do
 
@@ -105,6 +143,33 @@ main =
         pause
         liftIO $ P.close c
 
+      subject "HDBC" $ do
+        pause
+        c <- liftIO $ C.connectPostgreSQL $ concat $ intersperse " " $
+               [
+                 "host=" <> host,
+                 "port=" <> show port,
+                 "user=" <> user,
+                 "password=" <> password,
+                 "dbname=" <> db
+               ]
+        liftIO $ C.run c "SET client_min_messages TO WARNING" []
+        liftIO $ C.run c "DROP TABLE IF EXISTS a" []
+        liftIO $ C.run c 
+          "CREATE TABLE a (id SERIAL NOT NULL, \
+                           \name VARCHAR NOT NULL, \
+                           \birthday DATE, \
+                           \PRIMARY KEY (id))"
+          []
+        liftIO $ C.commit c
+        continue
+        liftIO $ replicateM_ 1000 $ do
+          C.quickQuery c "SELECT * FROM a WHERE id > ? AND id < ? AND birthday != ?" 
+                         [C.toSql (1000 :: Int), C.toSql (0 :: Int), C.toSql (read "2014-10-26" :: Day)]
+        pause
+        liftIO $ C.disconnect c
+
+
     standoff "Writing transaction" $ do
       
       let users = 20 :: Int
@@ -143,8 +208,8 @@ main =
         replicateM_ users $ do
           liftIO $ P.execute_ c "INSERT INTO a (balance) VALUES (0)"
         continue
-        forM_ transfers $ \(id1, id2) -> do
-          liftIO $ P.withTransactionMode (P.TransactionMode P.Serializable P.ReadWrite) c $ do
+        liftIO $ forM_ transfers $ \(id1, id2) -> do
+          P.withTransactionMode (P.TransactionMode P.Serializable P.ReadWrite) c $ do
             do
               [P.Only balance] <- P.query c "SELECT balance FROM a WHERE id=?" (P.Only id1)
               P.execute c "UPDATE a SET balance=? WHERE id=?" ((balance - amount), id1)
@@ -153,6 +218,32 @@ main =
               P.execute c "UPDATE a SET balance=? WHERE id=?" ((balance + amount), id1)
         pause
         liftIO $ P.close c
+
+      subject "HDBC" $ do
+        pause
+        c <- liftIO $ C.connectPostgreSQL $ concat $ intersperse " " $
+               [
+                 "host=" <> host,
+                 "port=" <> show port,
+                 "user=" <> user,
+                 "password=" <> password,
+                 "dbname=" <> db
+               ]
+        liftIO $ C.run c "SET client_min_messages TO WARNING" []
+        liftIO $ C.run c "DROP TABLE IF EXISTS a" []
+        liftIO $ C.run c "CREATE TABLE a (id SERIAL NOT NULL, balance INT8, PRIMARY KEY (id))" []
+        liftIO $ replicateM_ users $ do
+          C.run c "INSERT INTO a (balance) VALUES (0)" []
+        liftIO $ C.commit c
+        continue
+        liftIO $ forM_ transfers $ \(id1, id2) -> do
+          C.withTransaction c $ \c -> do
+            [[balance1]] <- C.quickQuery c "SELECT balance FROM a WHERE id=?" [C.toSql id1]
+            [[balance2]] <- C.quickQuery c "SELECT balance FROM a WHERE id=?" [C.toSql id2]
+            C.run c "UPDATE a SET balance=? WHERE id=?" [C.toSql (C.fromSql balance1 - amount), C.toSql id1]
+            C.run c "UPDATE a SET balance=? WHERE id=?" [C.toSql (C.fromSql balance2 + amount), C.toSql id2]
+        pause
+        liftIO $ C.disconnect c
 
 
 
