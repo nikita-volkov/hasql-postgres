@@ -52,7 +52,8 @@ library
     Hasql.Postgres.Prelude
     Hasql.Postgres.Renderer
     Hasql.Postgres.ErrorCode
-    Hasql.Postgres.OID
+    Hasql.Postgres.PTI
+    Hasql.Postgres.OIDMapping
     Hasql.Postgres.Statement
     Hasql.Postgres.Parser
     Hasql.Postgres.StatementPreparer

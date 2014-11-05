@@ -2,7 +2,6 @@ module Hasql.Postgres.Statement where
 
 import Hasql.Postgres.Prelude
 import qualified Database.PostgreSQL.LibPQ as L
-import qualified Hasql.Postgres.OID as OID
 import qualified Hasql.Postgres.Renderer as Renderer
 
 

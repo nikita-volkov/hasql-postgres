@@ -15,7 +15,7 @@ import qualified Hasql.Postgres.StatementPreparer as StatementPreparer
 import qualified Hasql.Postgres.TemplateConverter as TemplateConverter
 import qualified Hasql.Postgres.Parser as Parser
 import qualified Hasql.Postgres.Renderer as Renderer
-import qualified Hasql.Postgres.OID as OID
+import qualified Hasql.Postgres.OIDMapping as OIDMapping
 import qualified Data.Text.Encoding as Text
 import qualified ListT
 import qualified Language.Haskell.TH as TH
@@ -177,10 +177,10 @@ instance Backend.Mapping Postgres a => Backend.Mapping Postgres (Maybe a) where
   parseResult = 
     traverse (Backend.parseResult . Result . Just) . unpackResult
 
-instance (Backend.Mapping Postgres a, Renderer.Renderable a, Parser.Parsable a, OID.Identifiable a) => 
+instance (Backend.Mapping Postgres a, Renderer.Renderable a, Parser.Parsable a, OIDMapping.OIDMapping a) => 
          Backend.Mapping Postgres (Vector a) where
   renderValue = 
-    mkRenderValue PQ.Text (OID.identifyOID (undefined :: Vector a)) (Renderer.renderer Nothing)
+    mkRenderValue PQ.Text (OIDMapping.identifyOID (undefined :: Vector a)) (Renderer.renderer Nothing)
   parseResult = 
     mkParseResult (Parser.parser Nothing)
 
@@ -217,7 +217,7 @@ let
           renderValue = 
             mkRenderValue 
               PQ.Text 
-              (OID.identifyOID (undefined :: $(TH.conT t)))
+              (OIDMapping.identifyOID (undefined :: $(TH.conT t)))
               (Renderer.renderer Nothing)
           parseResult =
             mkParseResult (Parser.parser Nothing)
