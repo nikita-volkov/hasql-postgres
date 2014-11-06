@@ -5,9 +5,11 @@ module Hasql.Postgres.StatementPreparer where
 import Hasql.Postgres.Prelude
 import qualified Data.HashTable.IO as Hashtables
 import qualified Database.PostgreSQL.LibPQ as PQ
-import qualified Hasql.Postgres.Renderer as Renderer
 import qualified Hasql.Postgres.ResultParser as Result
 import qualified Hasql.Postgres.ResultHandler as ResultHandler
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Lazy as BL
 
 
 
@@ -48,7 +50,7 @@ prepare s tl (c, counter, table) =
       Nothing ->
         do
           w <- readIORef counter
-          n <- return (Renderer.run w Renderer.word16)
+          n <- return (BL.toStrict $ BB.toLazyByteString $ BB.word16Dec w)
           ResultHandler.unit =<< Result.parse c =<< PQ.prepare c n s (partial (not . null) tl)
           Hashtables.insert table k n
           writeIORef counter (succ w)

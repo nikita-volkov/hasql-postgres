@@ -2,7 +2,9 @@ module Hasql.Postgres.Statement where
 
 import Hasql.Postgres.Prelude
 import qualified Database.PostgreSQL.LibPQ as L
-import qualified Hasql.Postgres.Renderer as Renderer
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Lazy as BL
 
 
 type Statement =
@@ -48,30 +50,29 @@ closeCursor cursor =
   (template, [], False)
   where
     template =
-      Renderer.run cursor $ \c -> Renderer.string7 "CLOSE " <> Renderer.byteString c
+      "CLOSE " <> cursor
 
 fetchFromCursor :: Cursor -> Statement
 fetchFromCursor cursor =
   (template, [], False)
   where
     template =
-      Renderer.run cursor $ \c -> 
-        Renderer.string7 "FETCH FORWARD 256 FROM " <> Renderer.byteString c
+      "FETCH FORWARD 256 FROM " <> cursor
 
 beginTransaction :: TransactionMode -> Statement
-beginTransaction mode =
+beginTransaction (i, w) =
   (template, [], True)
   where
     template =
-      Renderer.run mode $ \(i, w) ->
-        mconcat $ intersperse (Renderer.char7 ' ') $
+      BL.toStrict $ BB.toLazyByteString $
+        mconcat $ intersperse (BB.char7 ' ') $
           [
-            Renderer.string7 "BEGIN"
+            BB.string7 "BEGIN"
             ,
             case i of
-              ReadCommitted  -> Renderer.string7 "ISOLATION LEVEL READ COMMITTED"
-              RepeatableRead -> Renderer.string7 "ISOLATION LEVEL REPEATABLE READ"
-              Serializable   -> Renderer.string7 "ISOLATION LEVEL SERIALIZABLE"
+              ReadCommitted  -> BB.string7 "ISOLATION LEVEL READ COMMITTED"
+              RepeatableRead -> BB.string7 "ISOLATION LEVEL REPEATABLE READ"
+              Serializable   -> BB.string7 "ISOLATION LEVEL SERIALIZABLE"
             ,
             case w of
               True  -> "READ WRITE"
