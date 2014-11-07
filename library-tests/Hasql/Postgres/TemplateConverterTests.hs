@@ -3,7 +3,6 @@ module Hasql.Postgres.TemplateConverterTests where
 
 import Test.Framework
 import Hasql.Postgres.Prelude
-import Hasql.Postgres.Parser
 import qualified Data.Text.Encoding
 import qualified Hasql.Postgres.TemplateConverter
 

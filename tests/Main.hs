@@ -131,28 +131,22 @@ test_mappingOfVector1 =
     validMappingSession v1
     validMappingSession v2
   where
-    v1  = Vector.fromList [v2, v2]
-    v2  = Vector.fromList [Just 'a', Nothing, Just 'b']
+    v1  = [v2, v2]
+    v2  = [Just 'a', Nothing, Just 'b']
 
-test_mappingOfVector2 =
+test_mappingOfList2 =
   session1 $ do
     validMappingSession v1
     validMappingSession v2
   where
-    v1  = Vector.fromList [v2, v2]
-    v2  = Vector.fromList [Just (1 :: Int), Just 2, Nothing]
+    v1  = [v2, v2]
+    v2  = [Just (1 :: Int), Just 2, Nothing]
 
-test_mappingOfVector3 =
+test_mappingOfList3 =
   session1 $ do
-    validMappingSession v1
-  where
-    v1 =
-      Vector.fromList
-        [
-          " 'a' \"b\" \\c\\ " :: Text
-        ]
+    validMappingSession [" 'a' \"b\" \\c\\ " :: Text]
 
-test_mappingOfVector4 =
+test_mappingOfList4 =
   assertEqual (Just (Identity v1)) =<< do
     session1 $ tx Nothing $ do
       unit $ [q|DROP TABLE IF EXISTS a|]
@@ -161,31 +155,20 @@ test_mappingOfVector4 =
       single $ [q|SELECT v FROM a|]
   where
     v1 =
-      Vector.fromList
-        [
-          Vector.fromList [Just 'a', Just 'b'],
-          Vector.fromList [Nothing, Just 'c']
-        ]
+      [
+        [Just 'a', Just 'b'],
+        [Nothing, Just 'c']
+      ]
 
-test_mappingOfVector5 =
+test_mappingOfList5 =
   session1 $ do
-    validMappingSession v1
-  where
-    v1 =
-      Vector.fromList
-        [
-          " 'a' \"b\" \\c\\ ф" :: ByteString
-        ]
+    validMappingSession [" 'a' \"b\" \\c\\ ф" :: ByteString]
 
-prop_mappingOfVectorOverByteString (list :: [ByteString]) =
-  mappingProp v
-  where
-    v = Vector.fromList list
+prop_mappingOfListOverByteString (x :: [ByteString]) =
+  mappingProp x
 
-prop_mappingOfVectorOverLazyByteString (list :: [LazyByteString]) =
-  mappingProp v
-  where
-    v = Vector.fromList list
+prop_mappingOfListOverLazyByteString (x :: [LazyByteString]) =
+  mappingProp x
 
 test_mappingOfBool =
   session1 $ do
@@ -267,17 +250,6 @@ prop_mappingOfLocalTime =
   forAll microsLocalTimeGen $ \v -> 
     mappingProp v
 
-prop_mappingOfZonedTime =
-  forAll gen $ \v -> 
-    eq v $ fromJust $ do unsafePerformIO $ session1 $ selectSelf v
-  where
-    eq a b = zonedTimeToUTC a === zonedTimeToUTC b
-    gen =
-      do
-        t <- microsLocalTimeGen
-        z <- minutesToTimeZone <$> choose (negate (11 * 60 + 59), 11 * 60 + 59)
-        return $ ZonedTime t z
-
 prop_mappingOfUTCTime =
   forAll gen $ \v ->
     mappingProp v
@@ -341,4 +313,6 @@ floatEqProp a b =
 
 mappingProp :: (Show a, Eq a, Backend.Mapping Postgres a) => a -> Property
 mappingProp v =
-  Just v === do unsafePerformIO $ session1 $ selectSelf v
+  Right v === do 
+    unsafePerformIO $ (try :: IO a -> IO (Either H.Error a)) $ fmap fromJust $ 
+      session1 $ selectSelf v

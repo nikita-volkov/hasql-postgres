@@ -12,7 +12,7 @@ where
 
 -- base-prelude
 -------------------------
-import BasePrelude as Exports
+import BasePrelude as Exports hiding (assert)
 
 -- mtl-prelude
 -------------------------
@@ -42,13 +42,13 @@ import Data.ByteString as Exports (ByteString)
 -------------------------
 import Data.Scientific as Exports (Scientific)
 
+-- uuid
+-------------------------
+import Data.UUID as Exports (UUID)
+
 -- time
 -------------------------
 import Data.Time as Exports
-
--- old-locale
--------------------------
-import System.Locale as Exports
 
 -- vector
 -------------------------
@@ -57,6 +57,10 @@ import Data.Vector as Exports (Vector)
 -- placeholders
 -------------------------
 import Development.Placeholders as Exports
+
+-- loch-th
+-------------------------
+import Debug.Trace.LocationTH as Exports
 
 -- custom
 -------------------------
