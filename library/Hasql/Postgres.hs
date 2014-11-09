@@ -1,3 +1,16 @@
+-- |
+-- This module contains everything required 
+-- to use \"hasql\" with Postgres.
+-- For information on how it should be used consult the \"hasql\" docs.
+-- 
+-- Please note that there is a few limitations inflicted by Postgres,
+-- encoding which in the type system would seriously burden the API,
+-- so it was decided to make it the user's responsibility 
+-- to make sure that certain conditions are satisfied during the runtime.
+-- Particularly this concerns the 'Backend.Mapping' instances of 
+-- @Maybe@, @[]@ and @Vector@.
+-- For details consult the docs on those instances.
+-- 
 module Hasql.Postgres 
 (
   Postgres(..), 
@@ -143,68 +156,255 @@ convertTemplate t =
 
 -- * Mappings
 -------------------------
+-- Not using TH to generate instances
+-- to be able to document them.
+-------------------------
 
-let
-  types =
-    [ 
-      [t|Maybe|],
-      [t|[]|],
-      [t|Vector|]
-    ]
-  in
-    fmap concat $ forM types $ \t ->
-      [d|
-        instance Mapping.Mapping ($t a) => Backend.Mapping Postgres ($t a) where
-          renderValue x = 
-            StatementArgument (oid, (,) <$> value <*> pure PQ.Binary)
-            where
-              oid = PTI.oidPQ $ Mapping.oid x
-              value = Mapping.encode x
-          parseResult (Result x) = 
-            Mapping.decode x
 
-      |]
+{-# INLINE renderValueUsingMapping #-}
+renderValueUsingMapping :: Mapping.Mapping a => a -> Backend.StatementArgument Postgres
+renderValueUsingMapping x = 
+  StatementArgument (oid, (,) <$> value <*> pure PQ.Binary)
+  where
+    oid = PTI.oidPQ $ Mapping.oid x
+    value = Mapping.encode x
 
-let
-  types =
-    [ 
-      [t|Int|],
-      [t|Int8|],
-      [t|Int16|],
-      [t|Int32|],
-      [t|Int64|],
-      [t|Word|],
-      [t|Word8|],
-      [t|Word16|],
-      [t|Word32|],
-      [t|Word64|],
-      [t|Float|],
-      [t|Double|],
-      [t|Scientific|],
-      [t|Day|],
-      [t|TimeOfDay|],
-      [t|(TimeOfDay, TimeZone)|],
-      [t|LocalTime|],
-      [t|UTCTime|],
-      [t|DiffTime|],
-      [t|Char|],
-      [t|Text|],
-      [t|LazyText|],
-      [t|ByteString|],
-      [t|LazyByteString|],
-      [t|Bool|],
-      [t|UUID|]
-    ]
-  in
-    fmap concat $ forM types $ \t ->
-      [d|
-        instance Backend.Mapping Postgres $t where
-          renderValue x = 
-            StatementArgument (oid, (,) <$> value <*> pure PQ.Binary)
-            where
-              oid = PTI.oidPQ $ Mapping.oid x
-              value = Mapping.encode x
-          parseResult (Result x) = 
-            Mapping.decode x
+{-# INLINE parseResultUsingMapping #-}
+parseResultUsingMapping :: Mapping.Mapping a => Backend.Result Postgres -> Either Text a
+parseResultUsingMapping (Result x) = 
+  Mapping.decode x
 
-      |]
+-- | 
+-- Maps to the same type as the underlying value, 
+-- encoding 'Nothing' as /NULL/.
+-- 
+-- /LIMITATION/
+-- 
+-- Multilevel 'Maybe's are not supported.
+-- E.g., a value @Just Nothing@ of type @(Maybe (Maybe a))@ 
+-- will be encoded the same way as @Nothing@.
+instance Mapping.Mapping a => Backend.Mapping Postgres (Maybe a) where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to Postgres arrays. 
+-- 
+-- /LIMITATION 1/
+-- 
+-- In multidimensional lists all rows of a dimension must have the same length.
+-- 
+-- E.g., the following is a corrupt value:
+-- 
+-- > [[1,2], [3]]
+-- 
+-- The following is a valid one:
+-- 
+-- > [[1,2], [3,4], [5,6]]
+-- 
+-- /LIMITATION 2/
+-- 
+-- 'Maybe' cannot be used to wrap an intermediate level in a multidimensional array.
+-- 
+-- E.g., the following is a corrupt type:
+-- 
+-- > [Maybe [a]]
+-- 
+-- However, both the first level list and the value are allowed to be wrapped in 'Maybe'.
+-- So the following is a valid type:
+-- 
+-- > Maybe [[[Maybe a]]]
+-- 
+-- /NOTICE/
+-- 
+-- Also, please note that since 'String' is just an alias to @['Char']@,
+-- it will be mapped to an array of characters. 
+-- So if you want to map to a textual type use 'Text' instead.
+-- 
+instance (Mapping.Mapping a, Mapping.ArrayMapping a) => Backend.Mapping Postgres [a] where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to Postgres' arrays.
+-- 
+-- Same rules as for the list instance apply. 
+-- Consult its docs for details.
+instance (Mapping.Mapping a, Mapping.ArrayMapping a) => Backend.Mapping Postgres (Vector a) where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @int8@.
+instance Backend.Mapping Postgres Int where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @int2@.
+instance Backend.Mapping Postgres Int8 where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @int2@.
+instance Backend.Mapping Postgres Int16 where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @int4@.
+instance Backend.Mapping Postgres Int32 where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @int8@.
+instance Backend.Mapping Postgres Int64 where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @int8@.
+instance Backend.Mapping Postgres Word where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @int2@.
+instance Backend.Mapping Postgres Word8 where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @int2@.
+instance Backend.Mapping Postgres Word16 where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @int4@.
+instance Backend.Mapping Postgres Word32 where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @int8@.
+instance Backend.Mapping Postgres Word64 where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @float4@.
+instance Backend.Mapping Postgres Float where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @float8@.
+instance Backend.Mapping Postgres Double where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @numeric@.
+instance Backend.Mapping Postgres Scientific where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @date@.
+instance Backend.Mapping Postgres Day where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @time@.
+instance Backend.Mapping Postgres TimeOfDay where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @timetz@.
+-- 
+-- Unlike with @timestamptz@, 
+-- Postgres does store the timezone information for @timetz@.
+-- However the \"time\" library does not contain any composite type,
+-- that fits the task, so we use a pair of 'TimeOfDay' and 'TimeZone'
+-- to represent a value on the Haskell's side.
+instance Backend.Mapping Postgres (TimeOfDay, TimeZone) where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @timestamptz@.
+-- 
+-- /NOTICE/
+-- 
+-- Postgres does not store the timezone information of @timestamptz@.
+-- Instead it stores a UTC value and silently interconverts 
+-- the incoming and outgoing values into a local time 
+-- of the client application according to client application's timezone.
+-- 
+-- This is a notoriously questionable design decision by the Postgres authors.
+-- This is why it is instead recommended to use @timestamp@ and 'UTCTime',
+-- while manually handling the timezone conversions on the application side.
+instance Backend.Mapping Postgres LocalTime where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @timestamp@.
+instance Backend.Mapping Postgres UTCTime where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @interval@.
+instance Backend.Mapping Postgres DiffTime where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @char@.
+-- Note that it supports UTF-8 values.
+instance Backend.Mapping Postgres Char where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @text@.
+instance Backend.Mapping Postgres Text where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @text@.
+instance Backend.Mapping Postgres LazyText where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @bytea@.
+instance Backend.Mapping Postgres ByteString where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @bytea@.
+instance Backend.Mapping Postgres LazyByteString where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @bool@.
+instance Backend.Mapping Postgres Bool where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
+-- |
+-- Maps to @uuid@.
+instance Backend.Mapping Postgres UUID where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
+
