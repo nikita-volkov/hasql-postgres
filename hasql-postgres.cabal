@@ -7,6 +7,12 @@ synopsis:
 description:
   This library provides a \"PostgreSQL\" driver for 
   <http://hackage.haskell.org/package/hasql the "hasql" library>.
+  .
+  According to the included benchmarks,
+  it performs up to 2.5x faster than \"postgresql-simple\" and
+  up to 8x faster than \"HDBC\".
+  You can read up
+  <http://nikita-volkov.github.io/hasql-benchmarks/ a post with analysis of those benchmarks>.
 category:
   Database
 homepage:
