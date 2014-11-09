@@ -78,7 +78,6 @@ library
     bytestring >= 0.10.4.0 && < 0.11,
     hashable == 1.2.*,
     -- control:
-    mmorph == 1.0.*,
     list-t >= 0.2.3 && < 0.3,
     -- errors:
     loch-th == 0.2.*,
@@ -129,7 +128,6 @@ test-suite library-tests
     bytestring >= 0.10.4.0 && < 0.11,
     hashable == 1.2.*,
     -- control:
-    mmorph == 1.0.*,
     list-t >= 0.2.3 && < 0.3,
     -- errors:
     loch-th == 0.2.*,

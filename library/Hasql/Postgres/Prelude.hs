@@ -18,10 +18,6 @@ import BasePrelude as Exports hiding (assert)
 -------------------------
 import MTLPrelude as Exports hiding (shift)
 
--- mmorph
--------------------------
-import Control.Monad.Morph as Exports
-
 -- list-t
 -------------------------
 import ListT as Exports (ListT)
