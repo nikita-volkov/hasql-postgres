@@ -103,8 +103,10 @@ main =
     standoff "Templates and rendering" $ do
 
       rows :: [(Text, Day)] <- 
-        liftIO $ replicateM 100 $ 
-          (,) <$> Q.generate Q.arbitrary <*> Q.generate Q.arbitrary
+        liftIO $ Q.generate $ replicateM 100 $ 
+          (,) <$> Q.arbitrary <*> Q.arbitrary
+          
+      let !day = read "2014-10-26" :: Day
 
       subject "hasql" $ do
         pause
@@ -122,7 +124,7 @@ main =
                 [H.q|SELECT * FROM a WHERE id > ? AND id < ? AND birthday != ?|] 
                   (1000 :: Int)
                   (0 :: Int) 
-                  (read "2014-10-26" :: Day)
+                  (day)
                 :: H.Tx H.Postgres s [(Int, Text, Day)]
           lift $ pause
 
@@ -138,7 +140,7 @@ main =
         continue
         liftIO $ replicateM_ 1000 $ do
           P.query c "SELECT * FROM a WHERE id > ? AND id < ? AND birthday != ?" 
-            (1000 :: Int, 0 :: Int, read "2014-10-26" :: Day) 
+            (1000 :: Int, 0 :: Int, day) 
             :: IO [(Int, Text, Day)]
         pause
         liftIO $ P.close c
@@ -165,7 +167,7 @@ main =
         continue
         liftIO $ replicateM_ 1000 $ do
           C.quickQuery c "SELECT * FROM a WHERE id > ? AND id < ? AND birthday != ?" 
-                         [C.toSql (1000 :: Int), C.toSql (0 :: Int), C.toSql (read "2014-10-26" :: Day)]
+                         [C.toSql (1000 :: Int), C.toSql (0 :: Int), C.toSql (day)]
         pause
         liftIO $ C.disconnect c
 
