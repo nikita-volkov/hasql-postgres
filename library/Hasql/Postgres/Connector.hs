@@ -49,11 +49,10 @@ open s =
       v <- lift $ L.serverVersion c
       when (v < 80200) $ throwError $ UnsupportedVersion v
     lift $ L.exec c $ mconcat $ map (<> ";") $ 
-      [ "SET standard_conforming_strings TO on",
-        "SET datestyle TO ISO",
+      [ 
         "SET client_encoding = 'UTF8'",
-        "SET client_min_messages TO WARNING",
-        "SET bytea_output = 'hex'" ]
+        "SET client_min_messages TO WARNING"
+      ]
     return c
 
 
