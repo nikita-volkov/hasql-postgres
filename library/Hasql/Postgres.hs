@@ -46,45 +46,52 @@ data Postgres =
   }
 
 instance Backend.Backend Postgres where
-  newtype StatementArgument Postgres = 
-    StatementArgument {unpackStatementArgument :: (PQ.Oid, Maybe (ByteString, PQ.Format))}
-  newtype Result Postgres = 
-    Result {unpackResult :: (Maybe ByteString)}
+  data StatementArgument Postgres = 
+    StatementArgument PQ.Oid (Mapping.Environment -> Maybe ByteString)
+  data Result Postgres = 
+    Result Mapping.Environment (Maybe ByteString)
   data Connection Postgres = 
     Connection {
       connection :: !PQ.Connection, 
       preparer :: !StatementPreparer.StatementPreparer,
-      transactionState :: !(IORef (Maybe Word))
+      transactionState :: !(IORef (Maybe Word)),
+      environment :: Mapping.Environment
     }
   connect p =
     do
       r <- runExceptT $ Connector.open settings
-      case r of
-        Left e -> 
-          throwIO $ Backend.CantConnect $ fromString $ show e
-        Right c ->
-          Connection <$> pure c <*> StatementPreparer.new c <*> newIORef Nothing
+      c <- either (\e -> throwIO $ Backend.CantConnect $ fromString $ show e) return r
+      Connection <$> pure c <*> StatementPreparer.new c <*> newIORef Nothing <*> getIntegerDatetimes c
     where
       settings =
         Connector.Settings (host p) (port p) (user p) (password p) (database p)
+      getIntegerDatetimes c =
+        fmap parseResult $ PQ.parameterStatus c "integer_datetimes"
+        where
+          parseResult = 
+            \case
+              Just "on" -> True
+              _ -> False
   disconnect c =
     PQ.finish (connection c)
   execute s c = 
-    ResultHandler.unit =<< execute (liftStatement s) c
+    ResultHandler.unit =<< execute (liftStatement c s) c
   executeAndGetMatrix s c =
-    {-# SCC "executeAndGetMatrix" #-} 
-    unsafeCoerce . ResultHandler.rowsVector =<< execute (liftStatement s) c
+    execute (liftStatement c s) c >>=
+    (fmap . fmap . fmap) (Result (environment c)) . ResultHandler.rowsVector
   executeAndStream s c =
     do
       name <- declareCursor
-      return $ unsafeCoerce $
+      return $ 
         let loop = do
               chunk <- lift $ fetchFromCursor name
               null <- lift $ ListT.null chunk
               guard $ not null
-              chunk <> loop
+              (fmap . fmap) packResult chunk <> loop
             in loop
     where
+      packResult = 
+        Result (environment c)
       nextName = 
         do
           counterM <- readIORef (transactionState c)
@@ -94,7 +101,7 @@ instance Backend.Backend Postgres where
       declareCursor =
         do
           name <- nextName
-          ResultHandler.unit =<< execute (Statement.declareCursor name (liftStatement s)) c
+          ResultHandler.unit =<< execute (Statement.declareCursor name (liftStatement c s)) c
           return name
       fetchFromCursor name =
         ResultHandler.rowsStream =<< execute (Statement.fetchFromCursor name) c
@@ -102,7 +109,7 @@ instance Backend.Backend Postgres where
         ResultHandler.unit =<< execute (Statement.closeCursor name) c
   executeAndCountEffects s c =
     do
-      b <- ResultHandler.rowsAffected =<< execute (liftStatement s) c
+      b <- ResultHandler.rowsAffected =<< execute (liftStatement c s) c
       case Atto.parseOnly (Atto.decimal <* Atto.endOfInput) b of
         Left m -> 
           throwIO $ Backend.UnexpectedResult (fromString m)
@@ -124,9 +131,12 @@ instance Backend.Backend Postgres where
       ResultHandler.unit =<< execute (bool Statement.abortTransaction Statement.commitTransaction commit) c
       writeIORef (transactionState c) Nothing
 
-liftStatement :: Backend.Statement Postgres -> Statement.Statement
-liftStatement (template, values) =
-  (template, map unpackStatementArgument values, True)
+liftStatement :: Backend.Connection Postgres -> Backend.Statement Postgres -> Statement.Statement
+liftStatement c (template, arguments) =
+  (,,) template (map liftArgument arguments) True
+  where
+    liftArgument (StatementArgument o f) = 
+      (,) o ((,) <$> f (environment c) <*> pure PQ.Binary)
 
 execute :: Statement.Statement -> Backend.Connection Postgres -> IO ResultParser.Result
 execute s c =
@@ -164,15 +174,14 @@ convertTemplate t =
 {-# INLINE renderValueUsingMapping #-}
 renderValueUsingMapping :: Mapping.Mapping a => a -> Backend.StatementArgument Postgres
 renderValueUsingMapping x = 
-  StatementArgument (oid, (,) <$> value <*> pure PQ.Binary)
-  where
-    oid = PTI.oidPQ $ Mapping.oid x
-    value = Mapping.encode x
+  StatementArgument
+    (PTI.oidPQ $ Mapping.oid x)
+    (flip Mapping.encode x)
 
 {-# INLINE parseResultUsingMapping #-}
 parseResultUsingMapping :: Mapping.Mapping a => Backend.Result Postgres -> Either Text a
-parseResultUsingMapping (Result x) = 
-  Mapping.decode x
+parseResultUsingMapping (Result e x) = 
+  Mapping.decode e x
 
 -- | 
 -- Maps to the same type as the underlying value, 
