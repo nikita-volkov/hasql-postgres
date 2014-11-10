@@ -204,7 +204,7 @@ instance Mapping.Mapping a => Backend.Mapping Postgres (Maybe a) where
 -- 
 -- /LIMITATION 2/
 -- 
--- 'Maybe' cannot be used to wrap an intermediate level in a multidimensional array.
+-- 'Maybe' cannot be used to wrap an intermediate level in a multidimensional list.
 -- 
 -- E.g., the following is a corrupt type:
 -- 
