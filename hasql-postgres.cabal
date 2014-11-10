@@ -9,8 +9,8 @@ description:
   <http://hackage.haskell.org/package/hasql the "hasql" library>.
   .
   According to the included benchmarks,
-  it performs up to 2.5x faster than \"postgresql-simple\" and
-  up to 8x faster than \"HDBC\".
+  it performs up to 2x faster than \"postgresql-simple\" and
+  up to 7x faster than \"HDBC\".
   You can read up
   <http://nikita-volkov.github.io/hasql-benchmarks/ a post with analysis of those benchmarks>.
 category:
