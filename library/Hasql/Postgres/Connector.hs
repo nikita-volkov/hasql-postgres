@@ -42,10 +42,10 @@ open s =
       when (s /= PQ.ConnectionOk) $ 
         do
           m <- lift $ PQ.errorMessage c
-          throwError $ BadStatus m
+          left $ BadStatus m
     do
       v <- lift $ PQ.serverVersion c
-      when (v < 80200) $ throwError $ UnsupportedVersion v
+      when (v < 80200) $ left $ UnsupportedVersion v
     lift $ PQ.exec c $ mconcat $ map (<> ";") $ 
       [ 
         "SET client_encoding = 'UTF8'",

@@ -12,7 +12,7 @@ data Part =
 
 run :: ByteString -> Parser a -> Either Text a
 run input parser =
-  left fromString $ parseOnly (parser <* endOfInput) input
+  either (Left . fromString) Right $ parseOnly (parser <* endOfInput) input
 
 parts :: Parser [Part]
 parts =
