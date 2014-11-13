@@ -1,9 +1,7 @@
--- |
--- Mid-level abstractions over gritty details of \"lib-pq\".
 module Hasql.Postgres.Connector where
 
 import Hasql.Postgres.Prelude hiding (Error)
-import qualified Database.PostgreSQL.LibPQ as L
+import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
@@ -35,20 +33,20 @@ data Error =
 
 -- |
 -- Establish and initialize a connection.
-open :: Settings -> ExceptT Error IO L.Connection
+open :: Settings -> EitherT Error IO PQ.Connection
 open s =
   do
-    c <- lift $ L.connectdb (settingsBS s)
+    c <- lift $ PQ.connectdb (settingsBS s)
     do
-      s <- lift $ L.status c
-      when (s /= L.ConnectionOk) $ 
+      s <- lift $ PQ.status c
+      when (s /= PQ.ConnectionOk) $ 
         do
-          m <- lift $ L.errorMessage c
+          m <- lift $ PQ.errorMessage c
           throwError $ BadStatus m
     do
-      v <- lift $ L.serverVersion c
+      v <- lift $ PQ.serverVersion c
       when (v < 80200) $ throwError $ UnsupportedVersion v
-    lift $ L.exec c $ mconcat $ map (<> ";") $ 
+    lift $ PQ.exec c $ mconcat $ map (<> ";") $ 
       [ 
         "SET client_encoding = 'UTF8'",
         "SET client_min_messages TO WARNING"
