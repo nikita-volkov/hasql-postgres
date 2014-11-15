@@ -170,91 +170,12 @@ prop_mappingOfListOverByteString (x :: [ByteString]) =
 prop_mappingOfListOverLazyByteString (x :: [LazyByteString]) =
   mappingProp x
 
-test_mappingOfBool =
-  session1 $ do
-    validMappingSession True
-    validMappingSession False
-
-test_mappingOfUTF8Char =
-  session1 $ do
-    validMappingSession 'Й'
-
--- Postgres does not allow the '/NUL' character in text data
-prop_mappingOfChar (v :: Char) =
-  (v /= '\NUL') ==>
-    mappingProp v
-
--- Postgres does not allow the '/NUL' character in text data
-prop_mappingOfText (v :: Text) =
-  (isNothing $ Data.Text.find (== '\NUL') v) ==>
-    mappingProp v
-
 prop_mappingOfLazyText (v :: LazyText) =
   (isNothing $ Data.Text.Lazy.find (== '\NUL') v) ==>
     mappingProp v
 
-prop_mappingOfByteString (v :: ByteString) =
-  mappingProp v
-
 prop_mappingOfLazyByteString (v :: LazyByteString) =
   mappingProp v
-
-prop_mappingOfInt (v :: Int) =
-  mappingProp v
-
-prop_mappingOfInt8 (v :: Int8) =
-  mappingProp v
-
-prop_mappingOfInt16 (v :: Int16) =
-  mappingProp v
-
-prop_mappingOfInt32 (v :: Int32) =
-  mappingProp v
-
-prop_mappingOfInt64 (v :: Int64) =
-  mappingProp v
-
-prop_mappingOfWord (v :: Word) =
-  mappingProp v
-
-prop_mappingOfWord8 (v :: Word8) =
-  mappingProp v
-
-prop_mappingOfWord16 (v :: Word16) =
-  mappingProp v
-
-prop_mappingOfWord32 (v :: Word32) =
-  mappingProp v
-
-prop_mappingOfWord64 (v :: Word64) =
-  mappingProp v
-
-prop_mappingOfFloat (v :: Float) =
-  floatEqProp v (fromJust $ unsafePerformIO $ session1 $ selectSelf v)
-
-prop_mappingOfDouble (v :: Double) =
-  floatEqProp v (fromJust $ unsafePerformIO $ session1 $ selectSelf v)
-
-prop_mappingOfScientific =
-  forAll scientificGen $ \v ->
-    mappingProp v
-
-prop_mappingOfDay (v :: Day) =
-  mappingProp v
-
-prop_mappingOfTimeOfDay (v :: TimeOfDay) =
-  forAll microsTimeOfDayGen $ \v -> 
-    mappingProp v
-
-prop_mappingOfLocalTime =
-  forAll microsLocalTimeGen $ \v -> 
-    mappingProp v
-
-prop_mappingOfUTCTime =
-  forAll gen $ \v ->
-    mappingProp v
-  where
-    gen = UTCTime <$> arbitrary <*> microsDiffTimeGen
 
 
 -- * Helpers
