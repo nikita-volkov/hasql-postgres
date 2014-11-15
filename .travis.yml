@@ -5,15 +5,62 @@ ghc:
   - 7.8
 
 env:
-  - transformers=0.2.*
-  - transformers=0.4.*
-
+  - postgres_install=1
+    postgres_version=8.3.0
+    postgres_integer_datetimes=0
+    transformers=0.2.*
+  - postgres_install=1
+    postgres_version=8.3.0
+    postgres_integer_datetimes=1
+    transformers=0.2.*
+  - postgres_install=0
+    transformers=0.4.*
+  
 install:
+  # Optionally install an arbitrary PostgreSQL version:
+  - if [ $postgres_install -eq 1 ];
+    then
+      set -o pipefail;
+      set -e;
+      export project_dir=$(pwd);
+      sudo /etc/init.d/postgresql stop;
+      wget https://ftp.postgresql.org/pub/source/v$postgres_version/postgresql-$postgres_version.tar.gz;
+      tar xzvf postgresql-$postgres_version.tar.gz;
+      cd "postgresql-$postgres_version";
+      if [ $postgres_integer_datetimes -eq 1 ];
+      then
+        sudo ./configure --enable-integer-datetimes --without-readline;
+      else
+        sudo ./configure --disable-integer-datetimes --without-readline;
+      fi;
+      sudo make;
+      sudo make install;
+      sudo mkdir /usr/local/pgsql/data;
+      sudo chown postgres /usr/local/pgsql/data;
+      sudo mkdir /usr/local/pgsql/log;
+      sudo chown postgres /usr/local/pgsql/log;
+      sudo -u postgres /usr/local/pgsql/bin/initdb -D /usr/local/pgsql/data;
+      sudo -u postgres 
+        /usr/local/pgsql/bin/pg_ctl start 
+          -D /usr/local/pgsql/data 
+          -l /usr/local/pgsql/log/main.log
+          -o "-h localhost -p 5432";
+      sleep 3;
+      sudo -u postgres /usr/local/pgsql/bin/createdb postgres || true;
+      cd $project_dir;
+    fi
   - cabal install "transformers == $transformers"
-  - cabal install happy # a "haskell-src-exts" implicit dependency workaround
+  # Work around a "haskell-src-exts" implicit dependency:
+  - cabal install happy
   - cabal install --only-dependencies --enable-tests --enable-benchmarks --force-reinstalls
+
 
 script:
   - cabal configure --enable-tests --enable-benchmarks
   - cabal build
-  - cabal test --show-details=always
+  - cabal test --show-details=always ||
+    { 
+      echo "Test failed. Here's the Postgres' log:";
+      sudo cat /usr/local/pgsql/log/main.log;
+      exit 1;
+    }

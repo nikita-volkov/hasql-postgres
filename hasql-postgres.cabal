@@ -8,6 +8,9 @@ description:
   This library provides a \"PostgreSQL\" driver for 
   <http://hackage.haskell.org/package/hasql the "hasql" library>.
   .
+  It's tested against Postgres versions 8.3 and 9.3
+  with the @integer_datetimes@ setting off and on.
+  .
   According to the included benchmarks,
   it performs up to 2x faster than \"postgresql-simple\" and
   up to 7x faster than \"HDBC\".
