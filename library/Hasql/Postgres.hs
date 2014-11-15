@@ -346,24 +346,21 @@ instance Backend.Mapping Postgres (TimeOfDay, TimeZone) where
   parseResult = parseResultUsingMapping
 
 -- |
--- Maps to @timestamptz@.
--- 
--- /NOTICE/
--- 
--- Postgres does not store the timezone information of @timestamptz@.
--- Instead it stores a UTC value and silently interconverts 
--- the incoming and outgoing values into a local time 
--- of the client application according to client application's timezone.
--- 
--- This is a notoriously questionable design decision by the Postgres authors.
--- This is why it is instead recommended to use @timestamp@ and 'UTCTime',
--- while manually handling the timezone conversions on the application side.
+-- Maps to @timestamp@.
 instance Backend.Mapping Postgres LocalTime where
   renderValue = renderValueUsingMapping
   parseResult = parseResultUsingMapping
 
 -- |
--- Maps to @timestamp@.
+-- Maps to @timestamptz@.
+-- 
+-- /NOTICE/
+-- 
+-- Postgres does not store the timezone information of @timestamptz@.
+-- Instead it stores a UTC value and performs silent conversions
+-- to the currently set timezone, when dealt with in the text format.
+-- However this library bypasses the silent conversions
+-- and communicates with Postgres using the UTC values directly.
 instance Backend.Mapping Postgres UTCTime where
   renderValue = renderValueUsingMapping
   parseResult = parseResultUsingMapping

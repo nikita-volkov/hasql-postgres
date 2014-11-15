@@ -205,16 +205,16 @@ let
         [|Decoder.timetz|]
       ,
       (,,,)
-        [t|UTCTime|]
+        [t|LocalTime|]
         [|PTI.timestamp|]
-        [|const $ Encoder.timestamp|]
-        [|const $ Decoder.timestamp|]
+        [|Encoder.timestamp|]
+        [|Decoder.timestamp|]
       ,
       (,,,)
-        [t|LocalTime|]
+        [t|UTCTime|]
         [|PTI.timestamptz|]
-        [|const $ Encoder.timestamptz|]
-        [|const $ Decoder.timestamptz|]
+        [|Encoder.timestamptz|]
+        [|Decoder.timestamptz|]
       ,
       (,,,)
         [t|DiffTime|]
