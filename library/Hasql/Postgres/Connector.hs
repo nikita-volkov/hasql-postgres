@@ -3,7 +3,8 @@ module Hasql.Postgres.Connector where
 import Hasql.Postgres.Prelude hiding (Error)
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Lazy.Builder as BB
+import qualified Data.ByteString.Lazy.Builder.ASCII as BB
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text.Encoding as TE
 
@@ -57,13 +58,13 @@ open s =
 settingsBS :: Settings -> ByteString
 settingsBS s =
   BL.toStrict $ BB.toLazyByteString $ 
-  mconcat $ intersperse " " args
+  mconcat $ intersperse (BB.char7 ' ') args
   where
     args =
       [
-        "host="     <> BB.byteString (host s),
-        "port="     <> BB.word16Dec (port s),
-        "user="     <> TE.encodeUtf8Builder (user s),
-        "password=" <> TE.encodeUtf8Builder (password s),
-        "dbname="   <> TE.encodeUtf8Builder (database s)
+        BB.string7 "host="     <> BB.byteString (host s),
+        BB.string7 "port="     <> BB.word16Dec (port s),
+        BB.string7 "user="     <> BB.byteString (TE.encodeUtf8 (user s)),
+        BB.string7 "password=" <> BB.byteString (TE.encodeUtf8 (password s)),
+        BB.string7 "dbname="   <> BB.byteString (TE.encodeUtf8 (database s))
       ]

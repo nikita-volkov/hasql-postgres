@@ -3,7 +3,7 @@ module Hasql.Postgres.TemplateConverter.Parser where
 import Hasql.Postgres.Prelude
 import Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Lazy.Builder as BB
 
 
 data Part =

@@ -3,7 +3,7 @@ module Hasql.Postgres.Statement where
 import Hasql.Postgres.Prelude
 import qualified Database.PostgreSQL.LibPQ as L
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Lazy.Builder as BB
 import qualified Data.ByteString.Lazy as BL
 
 
@@ -75,8 +75,8 @@ beginTransaction (i, w) =
               Serializable   -> BB.string7 "ISOLATION LEVEL SERIALIZABLE"
             ,
             case w of
-              True  -> "READ WRITE"
-              False -> "READ ONLY"
+              True  -> BB.string7 "READ WRITE"
+              False -> BB.string7 "READ ONLY"
           ]
 
 commitTransaction :: Statement

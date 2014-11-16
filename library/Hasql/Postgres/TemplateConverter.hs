@@ -2,7 +2,8 @@ module Hasql.Postgres.TemplateConverter where
 
 import Hasql.Postgres.Prelude
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Lazy.Builder as BB
+import qualified Data.ByteString.Lazy.Builder.ASCII as BB
 import qualified Hasql.Postgres.TemplateConverter.Parser as Parser
 
 
