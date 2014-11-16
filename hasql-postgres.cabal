@@ -8,7 +8,8 @@ description:
   This library provides a \"PostgreSQL\" driver for 
   <http://hackage.haskell.org/package/hasql the "hasql" library>.
   .
-  It's tested against Postgres versions 8.3 and 9.3
+  It supports all Postgres versions starting from 8.3 
+  and is tested against 8.3, 9.3 and 9.4
   with the @integer_datetimes@ setting off and on.
   .
   According to the included benchmarks,
