@@ -1,7 +1,7 @@
 name:
   hasql-postgres
 version:
-  0.5.0
+  0.5.1
 synopsis:
   A "PostgreSQL" backend for the "hasql" library
 description:
@@ -72,7 +72,7 @@ library
     -- template haskell:
     template-haskell == 2.*,
     -- parsers:
-    attoparsec == 0.12.*,
+    attoparsec >= 0.10 && < 0.13,
     -- database:
     hasql-backend == 0.1.*,
     postgresql-binary == 0.3.*,
@@ -118,12 +118,11 @@ test-suite library-tests
     -- testing:
     HTF == 0.12.*,
     quickcheck-instances == 0.3.*,
-    QuickCheck == 2.7.*,
-    HUnit == 1.2.*,
+    QuickCheck >= 2.6 && < 2.8,
     -- template haskell:
     template-haskell == 2.*,
     -- parsers:
-    attoparsec == 0.12.*,
+    attoparsec >= 0.10 && < 0.13,
     -- database:
     hasql >= 0.1.4 && < 0.2,
     postgresql-binary == 0.3.*,
@@ -171,8 +170,7 @@ test-suite tests
     -- testing:
     HTF == 0.12.*,
     quickcheck-instances == 0.3.*,
-    QuickCheck == 2.7.*,
-    HUnit == 1.2.*,
+    QuickCheck >= 2.6 && < 2.8,
     -- concurrency:
     SafeSemaphore == 0.10.*,
     slave-thread == 0.1.*,
@@ -215,7 +213,7 @@ benchmark competition
     hasql-backend,
     hasql >= 0.1.4 && < 0.2,
     -- random:
-    QuickCheck == 2.7.*,
+    QuickCheck >= 2.6 && < 2.8,
     quickcheck-instances == 0.3.*,
     -- benchmarking:
     criterion-plus == 0.1.*,
