@@ -55,7 +55,7 @@ install:
       cabal install "text == 1.0.*";
       cabal install "attoparsec == 0.10.*";
       cabal install "hashable == 1.0.*";
-      cabal install "scientific == 0.0.*";
+      cabal install "scientific == 0.2.*";
       cabal install "QuickCheck == 2.6.*";
     fi;
   # Work around the "haskell-src-exts" implicit dependency:
