@@ -219,8 +219,8 @@ let
       (,,,)
         [t|DiffTime|]
         [|PTI.interval|]
-        [|const $ Encoder.interval|]
-        [|const $ Decoder.interval|]
+        [|Encoder.interval|]
+        [|Decoder.interval|]
       ,
       (,,,)
         [t|Char|]
