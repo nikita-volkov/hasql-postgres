@@ -17,6 +17,22 @@ env:
 install:
   # Set up the Shell to treat the semicolon as &&
   - set -o pipefail && set -e
+  # Install the lower bound dependencies
+  - if [ $lower_bound_dependencies -eq 1 ];
+    then
+      cabal install "transformers == 0.2.*";
+      cabal install "bytestring == 0.10.0.0";
+      cabal install "text == 1.0.*";
+      cabal install "attoparsec == 0.10.*";
+      cabal install "hashable == 1.1.*";
+      cabal install "scientific == 0.2.*";
+      cabal install "QuickCheck == 2.6.*";
+    fi;
+  # Work around the "haskell-src-exts" implicit dependency:
+  - cabal install happy
+  - cabal install --only-dependencies --enable-tests --enable-benchmarks --force-reinstalls
+  - cabal configure --enable-tests --enable-benchmarks
+  - cabal build
   # Optionally install an arbitrary PostgreSQL version:
   - if [ $postgres_version ];
     then
@@ -47,25 +63,9 @@ install:
       sudo -u postgres /usr/local/pgsql/bin/createdb postgres || true;
       cd $project_dir;
     fi;
-  # Install the lower bound dependencies
-  - if [ $lower_bound_dependencies -eq 1 ];
-    then
-      cabal install "transformers == 0.2.*";
-      cabal install "bytestring == 0.10.0.0";
-      cabal install "text == 1.0.*";
-      cabal install "attoparsec == 0.10.*";
-      cabal install "hashable == 1.1.*";
-      cabal install "scientific == 0.2.*";
-      cabal install "QuickCheck == 2.6.*";
-    fi;
-  # Work around the "haskell-src-exts" implicit dependency:
-  - cabal install happy
-  - cabal install --only-dependencies --enable-tests --enable-benchmarks --force-reinstalls
 
 
 script:
-  - cabal configure --enable-tests --enable-benchmarks
-  - cabal build
   - cabal test --show-details=always ||
     { 
       echo "Test failed. Here's the Postgres' log:";
