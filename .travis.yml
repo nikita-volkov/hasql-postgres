@@ -17,10 +17,11 @@ env:
 install:
   # Set up the Shell to treat the semicolon as &&
   - set -o pipefail && set -e
+  - cabal update
   # Install the lower bound dependencies
   - if [ $lower_bound_dependencies -eq 1 ];
     then
-      cabal install "transformers == 0.2.*";
+      cabal install "mtl-prelude == 1.*";
       cabal install "bytestring == 0.10.0.0";
       cabal install "text == 1.0.*";
       cabal install "attoparsec == 0.10.*";
@@ -30,7 +31,7 @@ install:
     fi;
   # Work around the "haskell-src-exts" implicit dependency:
   - cabal install happy
-  - cabal install --only-dependencies --enable-tests --enable-benchmarks --force-reinstalls
+  - cabal install --only-dependencies --enable-tests --enable-benchmarks
   - cabal configure --enable-tests --enable-benchmarks
   - cabal build
   # Optionally install an arbitrary PostgreSQL version:
