@@ -1,7 +1,7 @@
 name:
   hasql-postgres
 version:
-  0.6.0
+  0.6.1
 synopsis:
   A "PostgreSQL" backend for the "hasql" library
 description:
@@ -107,6 +107,8 @@ test-suite library-tests
     library
   main-is:          
     Main.hs
+  other-modules:
+    Hasql.Postgres.TemplateConverterTests
   ghc-options:
     -threaded
     "-with-rtsopts=-N"
