@@ -4,6 +4,7 @@ module Main where
 import BasePrelude hiding (assert)
 import MTLPrelude
 import Test.Framework
+import Test.QuickCheck
 import Test.QuickCheck.Instances
 import Hasql
 import Hasql.Postgres (Postgres(..))

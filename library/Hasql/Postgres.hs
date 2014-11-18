@@ -132,8 +132,8 @@ instance Backend.Backend Postgres where
       writeIORef (transactionState c) Nothing
 
 liftStatement :: Backend.Connection Postgres -> Backend.Statement Postgres -> Statement.Statement
-liftStatement c (template, arguments) =
-  (,,) template (map liftArgument arguments) True
+liftStatement c (template, arguments, preparable) =
+  (,,) template (map liftArgument arguments) preparable
   where
     liftArgument (StatementArgument o f) = 
       (,) o ((,) <$> f (environment c) <*> pure PQ.Binary)

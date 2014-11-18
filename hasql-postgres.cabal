@@ -1,7 +1,7 @@
 name:
   hasql-postgres
 version:
-  0.6.1
+  0.7.0
 synopsis:
   A "PostgreSQL" backend for the "hasql" library
 description:
@@ -75,7 +75,7 @@ library
     -- parsers:
     attoparsec >= 0.10 && < 0.13,
     -- database:
-    hasql-backend == 0.1.*,
+    hasql-backend == 0.2.*,
     postgresql-binary == 0.5.*,
     postgresql-libpq == 0.9.*,
     -- data:
@@ -127,7 +127,7 @@ test-suite library-tests
     -- parsers:
     attoparsec >= 0.10 && < 0.13,
     -- database:
-    hasql >= 0.1.4 && < 0.2,
+    hasql == 0.2.*,
     postgresql-binary == 0.5.*,
     postgresql-libpq == 0.9.*,
     -- data:
@@ -169,7 +169,7 @@ test-suite tests
   build-depends:
     hasql-postgres,
     hasql-backend,
-    hasql >= 0.1.4 && < 0.2,
+    hasql == 0.2.*,
     -- testing:
     HTF == 0.12.*,
     quickcheck-instances == 0.3.*,
@@ -214,7 +214,7 @@ benchmark competition
     postgresql-simple == 0.4.*,
     hasql-postgres,
     hasql-backend,
-    hasql >= 0.1.4 && < 0.2,
+    hasql == 0.2.*,
     -- random:
     QuickCheck == 2.7.*,
     quickcheck-instances == 0.3.*,
