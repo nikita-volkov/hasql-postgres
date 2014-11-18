@@ -121,7 +121,7 @@ test-suite library-tests
     -- testing:
     HTF == 0.12.*,
     quickcheck-instances == 0.3.*,
-    QuickCheck >= 2.6 && < 2.8,
+    QuickCheck == 2.7.*,
     -- template haskell:
     template-haskell == 2.*,
     -- parsers:
@@ -173,7 +173,7 @@ test-suite tests
     -- testing:
     HTF == 0.12.*,
     quickcheck-instances == 0.3.*,
-    QuickCheck >= 2.6 && < 2.8,
+    QuickCheck == 2.7.*,
     -- concurrency:
     SafeSemaphore == 0.10.*,
     slave-thread == 0.1.*,
@@ -216,7 +216,7 @@ benchmark competition
     hasql-backend,
     hasql >= 0.1.4 && < 0.2,
     -- random:
-    QuickCheck >= 2.6 && < 2.8,
+    QuickCheck == 2.7.*,
     quickcheck-instances == 0.3.*,
     -- benchmarking:
     criterion-plus == 0.1.*,
