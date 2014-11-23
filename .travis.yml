@@ -5,7 +5,7 @@ env:
   - postgres_version=8.3.0
     postgres_integer_datetimes=1
     ghc=7.8.1
-  - postgres_version=9.4beta3
+  - postgres_version=9.4rc1
     postgres_integer_datetimes=0
     ghc=7.8.1
   - lower_bound_dependencies=1 
