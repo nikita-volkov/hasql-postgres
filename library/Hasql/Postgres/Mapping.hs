@@ -288,8 +288,8 @@ let
           {-# INLINE arrayEncode #-}
           arrayEncode e x =
             Array.fromSingleton (Just ($encoder e x))
-                                    (False)
-                                    (PTI.oidWord32 (PTI.ptiOID $pti))
+                                (False)
+                                (PTI.oidWord32 (PTI.ptiOID $pti))
           {-# INLINE arrayDecode #-}
           arrayDecode e =
             \case
