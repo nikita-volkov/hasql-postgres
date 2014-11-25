@@ -80,9 +80,9 @@ erroneousResultText :: Result -> Maybe Text
 erroneousResultText =
   \case
     NoResult (Just bs) -> 
-      Just $ "Inable to send command to the server due to: " <> Text.decodeLatin1 bs
+      Just $ "Unable to send command to the server due to: " <> Text.decodeLatin1 bs
     NoResult Nothing -> 
-      Just $ "Inable to send command to the server"
+      Just $ "Unable to send command to the server"
     StatusError status code message details hint ->
       Just $ 
         "A status error. " <> formatFields fields
