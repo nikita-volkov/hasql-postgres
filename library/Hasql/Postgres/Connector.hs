@@ -3,16 +3,14 @@ module Hasql.Postgres.Connector where
 import Hasql.Postgres.Prelude hiding (Error)
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy.Builder as BB
-import qualified Data.ByteString.Lazy.Builder.ASCII as BB
-import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text.Encoding as TE
 
 
 data Settings =
   Settings {
     host :: ByteString,
-    port :: Word16,
+    port :: Maybe Int,
     user :: Text,
     password :: Text,
     database :: Text
@@ -22,8 +20,7 @@ data Settings =
 -- |
 -- Default settings.
 settings :: Settings
-settings =
-  Settings "127.0.0.1" 5432 "postgres" "" ""
+settings = Settings mempty Nothing mempty mempty mempty
 
 
 data Error =
@@ -57,14 +54,18 @@ open s =
 
 settingsBS :: Settings -> ByteString
 settingsBS s =
-  BL.toStrict $ BB.toLazyByteString $ 
-  mconcat $ intersperse (BB.char7 ' ') args
+    B.intercalate " " $ filter (not . B.null) args
   where
     args =
-      [
-        BB.string7 "host="     <> BB.byteString (host s),
-        BB.string7 "port="     <> BB.word16Dec (port s),
-        BB.string7 "user="     <> BB.byteString (TE.encodeUtf8 (user s)),
-        BB.string7 "password=" <> BB.byteString (TE.encodeUtf8 (password s)),
-        BB.string7 "dbname="   <> BB.byteString (TE.encodeUtf8 (database s))
+       [
+        "host="     <>? host s,
+        "port="     <>? fromMaybe "" ((BC.pack . show) <$> port s),
+        "user="     <>? TE.encodeUtf8 (user s),
+        "password=" <>? TE.encodeUtf8 (password s),
+        "dbname="   <>? TE.encodeUtf8 (database s)
       ]
+
+(<>?) :: ByteString -> ByteString -> ByteString
+a <>? b
+  | B.null b  = mempty
+  | otherwise = a <> b
