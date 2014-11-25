@@ -32,10 +32,13 @@ instance Hashable LocalKey
 type RemoteKey =
   ByteString
 
-run :: MonadIO m => PQ.Connection -> M m r -> m (Either ResultProcessing.Error r)
-run c m =
+type Unlift m r =
+  M m r -> m (Either ResultProcessing.Error r)
+
+run :: (MonadIO m, Monad m') => PQ.Connection -> m (Unlift m' r)
+run c =
   do  e <- liftIO $ (,,) <$> pure c <*> newIORef 0 <*> Hashtables.new
-      ResultProcessing.run c $ runReaderT m e
+      return $ \m -> ResultProcessing.run c >>= \u -> u $ runReaderT m e
 
 prepare :: MonadIO m => ByteString -> [PQ.Oid] -> M m RemoteKey
 prepare s tl =
