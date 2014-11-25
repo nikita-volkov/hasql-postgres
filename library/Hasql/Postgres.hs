@@ -39,7 +39,7 @@ import qualified ListT
 data Postgres =
   Postgres {
     host :: ByteString,
-    port :: Word16,
+    port :: Maybe Int,
     user :: Text,
     password :: Text,
     database :: Text
