@@ -63,6 +63,7 @@ library
     Hasql.Postgres.Statement
     Hasql.Postgres.TemplateConverter
     Hasql.Postgres.TemplateConverter.Parser
+    Hasql.Postgres.Session.ResultProcessing
   exposed-modules:
   build-depends:
     -- template haskell:
