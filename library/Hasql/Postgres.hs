@@ -59,7 +59,7 @@ instance Backend.Backend Postgres where
     }
   connect p =
     do
-      r <- runEitherT $ Connector.open settings
+      r <- Connector.open settings
       c <- either (\e -> throwIO $ Backend.CantConnect $ fromString $ show e) return r
       Connection <$> pure c <*> StatementPreparer.new c <*> newIORef Nothing <*> getIntegerDatetimes c
     where
