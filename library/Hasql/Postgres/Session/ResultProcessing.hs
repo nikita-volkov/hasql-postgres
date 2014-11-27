@@ -11,24 +11,25 @@ import qualified Data.Vector.Mutable as MVector
 import qualified ListT
 
 
-type M m =
-  EitherT Error (ReaderT PQ.Connection m)
+newtype M m r =
+  M (EitherT Error (ReaderT PQ.Connection m) r)
+  deriving (Functor, Applicative, Monad, MonadIO)
 
-type Unlift m r = 
-  M m r -> m (Either Error r)
+instance MonadTrans M where
+  lift = M . lift . lift
 
 data Error =
   UnexpectedResult Text |
   ErroneousResult Text |
   TransactionConflict
 
-run :: Monad m => PQ.Connection -> m (Unlift m r)
-run c =
-  return $ \m -> flip runReaderT c $ runEitherT m
+run :: Monad m => PQ.Connection -> M m r -> m (Either Error r)
+run e (M m) =
+  flip runReaderT e $ runEitherT m
 
-result :: MonadIO m => Maybe PQ.Result -> M m PQ.Result
-result =
-  ($ return) $ maybe $ do
+just :: MonadIO m => Maybe PQ.Result -> M m PQ.Result
+just =
+  ($ return) $ maybe $ M $ do
     m <- lift $ ask >>= liftIO . PQ.errorMessage
     left $ ErroneousResult $ case m of
       Nothing -> 
@@ -37,8 +38,8 @@ result =
         "Sending a command to the server failed due to: " <> 
         TE.decodeLatin1 m
 
-statusGuard :: MonadIO m => (PQ.ExecStatus -> Bool) -> PQ.Result -> M m ()
-statusGuard g r =
+checkStatus :: MonadIO m => (PQ.ExecStatus -> Bool) -> PQ.Result -> M m ()
+checkStatus g r =
   do
     s <- liftIO $ PQ.resultStatus r
     unless (g s) $ do
@@ -46,7 +47,7 @@ statusGuard g r =
         PQ.BadResponse   -> failWithErroneousResult "Bad response"
         PQ.NonfatalError -> failWithErroneousResult "Non-fatal error"
         PQ.FatalError    -> failWithErroneousResult "Fatal error"
-        _ -> left $ UnexpectedResult $ "Unexpected result status: " <> (fromString $ show s)
+        _ -> M $ left $ UnexpectedResult $ "Unexpected result status: " <> (fromString $ show s)
   where
     failWithErroneousResult status =
       do
@@ -64,11 +65,11 @@ statusGuard g r =
                   ]
                 Nothing ->
                   False
-            in when transactionConflict $ left $ TransactionConflict
+            in when transactionConflict $ M $ left $ TransactionConflict
         message <- liftIO $ PQ.resultErrorField r PQ.DiagMessagePrimary
         detail <- liftIO $ PQ.resultErrorField r PQ.DiagMessageDetail
         hint <- liftIO $ PQ.resultErrorField r PQ.DiagMessageHint
-        left $ ErroneousResult $ erroneousResultMessage status code message detail hint
+        M $ left $ ErroneousResult $ erroneousResultMessage status code message detail hint
     erroneousResultMessage status code message details hint =
       formatFields fields
       where
@@ -88,50 +89,27 @@ statusGuard g r =
             fmap (("Hint",) . TE.decodeLatin1) $ hint
           ]
 
--- match :: (PQ.ExecStatus -> PQ.Result -> Maybe (T a)) -> Maybe PQ.Result -> T a
--- match matcher mr = 
---   do
---     r <- result mr
---     s <- liftIO $ PQ.resultStatus r
---     case matcher s r of
---       Just rp -> rp
---       Nothing -> do
---         erroneousStatusGuard s r
---         lift $ left $ UnexpectedResult $ "Unexpected result status: " <> (fromString $ show s)
+unit :: MonadIO m => PQ.Result -> M m ()
+unit r =
+  checkStatus (\case PQ.CommandOk -> True; _ -> False) r
 
--- resolveResult :: (PQ.ExecStatus -> Bool) -> Maybe PQ.Result -> T (PQ.Result, PQ.ExecStatus)
--- resolveResult statusChecker mr =
---   do
---     r <- result mr
---     s <- liftIO $ PQ.resultStatus r
---     unless (statusChecker s) $ do
---       erroneousStatusGuard s r
---       lift $ left $ UnexpectedResult $ "Unexpected result status: " <> (fromString $ show s)
---     return (r, s)
+count :: MonadIO m => PQ.Result -> M m Word64
+count r =
+  do  checkStatus (\case PQ.CommandOk -> True; _ -> False) r
+      (liftIO $ PQ.cmdTuples r) >>= 
+        maybe (M $ left $ UnexpectedResult $ "No number of affected rows")
+              (parseWord64)
 
--- unit :: Maybe PQ.Result -> T ()
--- unit =
---   match $ \case
---     PQ.CommandOk -> const $ Just $ return ()
---     _ -> const $ Nothing
+parseWord64 :: Monad m => ByteString -> M m Word64
+parseWord64 b =
+  either (\m -> M $ left $ UnexpectedResult $ "Couldn't parse Word64: " <> fromString m)
+         (return)
+         (Atto.parseOnly (Atto.decimal <* Atto.endOfInput) b)
 
-unit :: MonadIO m => Maybe PQ.Result -> M m ()
-unit mr =
+vector :: MonadIO m => PQ.Result -> M m (Vector (Vector (Maybe ByteString)))
+vector r =
   do
-    r <- result mr
-    statusGuard (\case PQ.CommandOk -> True; _ -> False) r
-    return ()
-
--- -- count :: Maybe PQ.Result -> T Word64
--- -- count =
--- --   match $ \case
--- --     PQ.CommandOk -> 
-
-vector :: MonadIO m => Maybe PQ.Result -> M m (Vector (Vector (Maybe ByteString)))
-vector mr =
-  do
-    r <- result mr
-    statusGuard (\case PQ.TuplesOk -> True; _ -> False) r
+    checkStatus (\case PQ.TuplesOk -> True; _ -> False) r
     liftIO $ do
       nr <- PQ.ntuples r
       nc <- PQ.nfields r
@@ -143,7 +121,6 @@ vector mr =
         vy <- Vector.unsafeFreeze mvy
         MVector.write mvx (rowInt ir) vy
       Vector.unsafeFreeze mvx
-
 
 {-# INLINE colInt #-}
 colInt :: PQ.Column -> Int

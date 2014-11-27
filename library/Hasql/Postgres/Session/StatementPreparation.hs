@@ -13,11 +13,15 @@ import qualified Hasql.Postgres.Session.ResultProcessing as ResultProcessing
 
 -- |
 -- Environment
-type E =
+type Env =
   (PQ.Connection, IORef Word16, Hashtables.BasicHashTable LocalKey RemoteKey)
 
-type M m =
-  ReaderT E (ResultProcessing.M m)
+newtype M m r =
+  M (ReaderT Env (ResultProcessing.M m) r)
+  deriving (Functor, Applicative, Monad, MonadIO)
+
+instance MonadTrans M where
+  lift = M . lift . lift
 
 -- |
 -- Local statement key.
@@ -32,17 +36,19 @@ instance Hashable LocalKey
 type RemoteKey =
   ByteString
 
-type Unlift m r =
-  M m r -> m (Either ResultProcessing.Error r)
 
-run :: (MonadIO m, Monad m') => PQ.Connection -> m (Unlift m' r)
-run c =
-  do  e <- liftIO $ (,,) <$> pure c <*> newIORef 0 <*> Hashtables.new
-      return $ \m -> ResultProcessing.run c >>= \u -> u $ runReaderT m e
+newEnv :: PQ.Connection -> IO Env
+newEnv c =
+  (,,) <$> pure c <*> newIORef 0 <*> Hashtables.new
+
+run :: (MonadIO m) => Env -> M m r -> m (Either ResultProcessing.Error r)
+run e (M m) =
+  let (c, _, _) = e
+      in ResultProcessing.run c $ runReaderT m e
 
 prepare :: MonadIO m => ByteString -> [PQ.Oid] -> M m RemoteKey
 prepare s tl =
-  ReaderT $ \(c, counter, table) -> do
+  M $ ReaderT $ \(c, counter, table) -> do
     let k = LocalKey s tl
     nm <- liftIO $ Hashtables.lookup table k
     case nm of
@@ -52,7 +58,8 @@ prepare s tl =
         do
           w <- liftIO $ readIORef counter
           let n = BL.toStrict $ BB.toLazyByteString $ BB.word16Dec w
-          ResultProcessing.unit =<< do liftIO $ PQ.prepare c n s (partial (not . null) tl)
+          ResultProcessing.unit =<< ResultProcessing.just =<< do 
+            liftIO $ PQ.prepare c n s (partial (not . null) tl)
           liftIO $ Hashtables.insert table k n
           liftIO $ writeIORef counter (succ w)
           return n

@@ -61,10 +61,11 @@ library
     Hasql.Postgres.PTI
     Hasql.Postgres.Mapping
     Hasql.Postgres.Statement
-    Hasql.Postgres.Session.StatementPreparation
     Hasql.Postgres.TemplateConverter
     Hasql.Postgres.TemplateConverter.Parser
+    Hasql.Postgres.Session
     Hasql.Postgres.Session.ResultProcessing
+    Hasql.Postgres.Session.StatementPreparation
   exposed-modules:
   build-depends:
     -- template haskell:
