@@ -1,6 +1,6 @@
 module Hasql.Postgres.Session.ResultProcessing where
 
-import Hasql.Postgres.Prelude hiding (fail)
+import Hasql.Postgres.Prelude
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Hasql.Postgres.ErrorCode as ErrorCode
 import qualified Data.Text as T
@@ -11,23 +11,20 @@ import qualified Data.Vector.Mutable as MVector
 import qualified ListT
 
 
-newtype M m r =
-  M (EitherT Error (ReaderT PQ.Connection m) r)
+newtype M r =
+  M (EitherT Error (ReaderT PQ.Connection IO) r)
   deriving (Functor, Applicative, Monad, MonadIO)
-
-instance MonadTrans M where
-  lift = M . lift . lift
 
 data Error =
   UnexpectedResult Text |
   ErroneousResult Text |
   TransactionConflict
 
-run :: Monad m => PQ.Connection -> M m r -> m (Either Error r)
+run :: PQ.Connection -> M r -> IO (Either Error r)
 run e (M m) =
   flip runReaderT e $ runEitherT m
 
-just :: MonadIO m => Maybe PQ.Result -> M m PQ.Result
+just :: Maybe PQ.Result -> M PQ.Result
 just =
   ($ return) $ maybe $ M $ do
     m <- lift $ ask >>= liftIO . PQ.errorMessage
@@ -38,7 +35,7 @@ just =
         "Sending a command to the server failed due to: " <> 
         TE.decodeLatin1 m
 
-checkStatus :: MonadIO m => (PQ.ExecStatus -> Bool) -> PQ.Result -> M m ()
+checkStatus :: (PQ.ExecStatus -> Bool) -> PQ.Result -> M ()
 checkStatus g r =
   do
     s <- liftIO $ PQ.resultStatus r
@@ -89,24 +86,24 @@ checkStatus g r =
             fmap (("Hint",) . TE.decodeLatin1) $ hint
           ]
 
-unit :: MonadIO m => PQ.Result -> M m ()
+unit :: PQ.Result -> M ()
 unit r =
   checkStatus (\case PQ.CommandOk -> True; _ -> False) r
 
-count :: MonadIO m => PQ.Result -> M m Word64
+count :: PQ.Result -> M Word64
 count r =
   do  checkStatus (\case PQ.CommandOk -> True; _ -> False) r
       (liftIO $ PQ.cmdTuples r) >>= 
         maybe (M $ left $ UnexpectedResult $ "No number of affected rows")
               (parseWord64)
 
-parseWord64 :: Monad m => ByteString -> M m Word64
+parseWord64 :: ByteString -> M Word64
 parseWord64 b =
   either (\m -> M $ left $ UnexpectedResult $ "Couldn't parse Word64: " <> fromString m)
          (return)
          (Atto.parseOnly (Atto.decimal <* Atto.endOfInput) b)
 
-vector :: MonadIO m => PQ.Result -> M m (Vector (Vector (Maybe ByteString)))
+vector :: PQ.Result -> M (Vector (Vector (Maybe ByteString)))
 vector r =
   do
     checkStatus (\case PQ.TuplesOk -> True; _ -> False) r

@@ -67,6 +67,8 @@ library
     Hasql.Postgres.Session
     Hasql.Postgres.Session.ResultProcessing
     Hasql.Postgres.Session.StatementPreparation
+    Hasql.Postgres.Session.Transaction
+    Hasql.Postgres.Session.Execution
   exposed-modules:
   build-depends:
     -- template haskell:
