@@ -64,12 +64,12 @@ library
     Hasql.Postgres.Statement
     Hasql.Postgres.TemplateConverter
     Hasql.Postgres.TemplateConverter.Parser
-    Hasql.Postgres.Session
     Hasql.Postgres.Session.ResultProcessing
     Hasql.Postgres.Session.StatementPreparation
     Hasql.Postgres.Session.Transaction
     Hasql.Postgres.Session.Execution
   exposed-modules:
+    Hasql.Postgres
   build-depends:
     -- template haskell:
     template-haskell == 2.*,
@@ -91,6 +91,7 @@ library
     -- control:
     either == 4.*,
     list-t >= 0.2.3 && < 0.3,
+    mmorph == 1.0.*,
     -- errors:
     loch-th == 0.2.*,
     placeholders == 0.1.*,
