@@ -14,9 +14,12 @@ where
 -------------------------
 import BasePrelude as Exports hiding (assert, left, right)
 
--- mtl-prelude
+-- transformers
 -------------------------
-import MTLPrelude as Exports hiding (shift)
+import Control.Monad.IO.Class as Exports
+import Control.Monad.Trans.Class as Exports
+import Control.Monad.Trans.Reader as Exports hiding (liftCallCC, liftCatch)
+import Control.Monad.Trans.State.Strict as Exports hiding (liftCallCC, liftCatch)
 
 -- either
 -------------------------
