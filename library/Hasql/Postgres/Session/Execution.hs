@@ -27,7 +27,7 @@ data LocalKey =
 
 instance Hashable LocalKey where
   hashWithSalt salt (LocalKey template types) =
-    hashWithSalt (hashWithSalt salt template) types
+    hashWithSalt salt template
 
 localKey :: ByteString -> [PQ.Oid] -> LocalKey
 localKey t ol =
@@ -71,7 +71,7 @@ prepare s tl =
     rk <- liftIO $ Hashtables.lookup table lk
     ($ rk) $ ($ return) $ maybe $ do
       w <- liftIO $ readIORef counter
-      let rk = fromString $ 'x' : show w
+      let rk = fromString $ show w
       unitResult =<< do liftIO $ PQ.prepare c rk s (partial (not . null) tl)
       liftIO $ Hashtables.insert table lk rk
       liftIO $ writeIORef counter (succ w)
