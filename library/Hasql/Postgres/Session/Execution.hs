@@ -42,10 +42,18 @@ data Error =
 -- |
 -- Local statement key.
 data LocalKey =
-  LocalKey !ByteString ![PQ.Oid]
-  deriving (Show, Eq, Generic)
+  LocalKey !ByteString ![Word32]
+  deriving (Show, Eq)
 
-instance Hashable LocalKey
+instance Hashable LocalKey where
+  hashWithSalt salt (LocalKey template types) =
+    hashWithSalt (hashWithSalt salt template) types
+
+localKey :: ByteString -> [PQ.Oid] -> LocalKey
+localKey t ol =
+  LocalKey t (map oidMapper ol)
+  where
+    oidMapper (PQ.Oid x) = fromIntegral x
 
 
 -- |
@@ -65,7 +73,7 @@ prepare :: ByteString -> [PQ.Oid] -> M RemoteKey
 prepare s tl =
   do
     (c, counter, table) <- M $ ask
-    let k = LocalKey s tl
+    let k = localKey s tl
     nm <- liftIO $ Hashtables.lookup table k
     ($ nm) $ ($ return) $ maybe $ do
       w <- liftIO $ readIORef counter
