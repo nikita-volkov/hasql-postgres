@@ -3,10 +3,6 @@ module Hasql.Postgres.Session.Execution where
 import Hasql.Postgres.Prelude
 import qualified Data.HashTable.IO as Hashtables
 import qualified Database.PostgreSQL.LibPQ as PQ
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy.Builder as BB
-import qualified Data.ByteString.Lazy.Builder.ASCII as BB
-import qualified Data.ByteString.Lazy as BL
 import qualified Hasql.Postgres.Statement as Statement
 import qualified Hasql.Postgres.TemplateConverter as TemplateConverter
 import qualified Hasql.Postgres.Session.ResultProcessing as ResultProcessing
@@ -18,25 +14,9 @@ import qualified Hasql.Postgres.Session.ResultProcessing as ResultProcessing
 type Env =
   (PQ.Connection, IORef Word16, Hashtables.BasicHashTable LocalKey RemoteKey)
 
-
 newEnv :: PQ.Connection -> IO Env
 newEnv c =
   (,,) <$> pure c <*> newIORef 0 <*> Hashtables.new
-
-
--- * Monad
--------------------------
-
-newtype M r =
-  M (ReaderT Env (EitherT Error IO) r)
-  deriving (Functor, Applicative, Monad, MonadIO)
-
-
-data Error =
-  UnexpectedResult Text |
-  ErroneousResult Text |
-  UnparsableTemplate ByteString Text |
-  TransactionConflict
 
 
 -- |
@@ -62,6 +42,20 @@ type RemoteKey =
   ByteString
 
 
+data Error =
+  UnexpectedResult Text |
+  ErroneousResult Text |
+  UnparsableTemplate ByteString Text |
+  TransactionConflict
+
+
+-- * Monad
+-------------------------
+
+newtype M r =
+  M (ReaderT Env (EitherT Error IO) r)
+  deriving (Functor, Applicative, Monad, MonadIO)
+
 run :: Env -> M r -> IO (Either Error r)
 run e (M m) =
   runEitherT $ runReaderT m e
@@ -73,15 +67,15 @@ prepare :: ByteString -> [PQ.Oid] -> M RemoteKey
 prepare s tl =
   do
     (c, counter, table) <- M $ ask
-    let k = localKey s tl
-    nm <- liftIO $ Hashtables.lookup table k
-    ($ nm) $ ($ return) $ maybe $ do
+    let lk = localKey s tl
+    rk <- liftIO $ Hashtables.lookup table lk
+    ($ rk) $ ($ return) $ maybe $ do
       w <- liftIO $ readIORef counter
-      let n = BL.toStrict $ BB.toLazyByteString $ BB.word16Dec w
-      unitResult =<< do liftIO $ PQ.prepare c n s (partial (not . null) tl)
-      liftIO $ Hashtables.insert table k n
+      let rk = fromString $ 'x' : show w
+      unitResult =<< do liftIO $ PQ.prepare c rk s (partial (not . null) tl)
+      liftIO $ Hashtables.insert table lk rk
       liftIO $ writeIORef counter (succ w)
-      return n
+      return rk
 
 statement :: Statement.Statement -> M (Maybe PQ.Result)
 statement s =
