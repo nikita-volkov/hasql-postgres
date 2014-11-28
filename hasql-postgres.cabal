@@ -56,17 +56,17 @@ library
   default-language:
     Haskell2010
   other-modules:
+    Hasql.Postgres.Connector
     Hasql.Postgres.Prelude
     Hasql.Postgres.ErrorCode
     Hasql.Postgres.PTI
     Hasql.Postgres.Mapping
     Hasql.Postgres.Statement
-    Hasql.Postgres.StatementPreparer
     Hasql.Postgres.TemplateConverter
     Hasql.Postgres.TemplateConverter.Parser
-    Hasql.Postgres.ResultHandler
-    Hasql.Postgres.Connector
-    Hasql.Postgres.ResultParser
+    Hasql.Postgres.Session.ResultProcessing
+    Hasql.Postgres.Session.Transaction
+    Hasql.Postgres.Session.Execution
   exposed-modules:
     Hasql.Postgres
   build-depends:
@@ -90,6 +90,7 @@ library
     -- control:
     either == 4.*,
     list-t >= 0.2.3 && < 0.3,
+    mmorph == 1.0.*,
     -- errors:
     loch-th == 0.2.*,
     placeholders == 0.1.*,
@@ -142,6 +143,7 @@ test-suite library-tests
     -- control:
     either == 4.*,
     list-t >= 0.2.3 && < 0.3,
+    mmorph == 1.0.*,
     -- errors:
     loch-th == 0.2.*,
     placeholders == 0.1.*,

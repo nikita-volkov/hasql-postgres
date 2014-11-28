@@ -21,13 +21,11 @@ import Hasql.Postgres.Prelude
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Hasql.Backend as Backend
 import qualified Hasql.Postgres.Connector as Connector
-import qualified Hasql.Postgres.ResultParser as ResultParser
-import qualified Hasql.Postgres.ResultHandler as ResultHandler
 import qualified Hasql.Postgres.Statement as Statement
-import qualified Hasql.Postgres.StatementPreparer as StatementPreparer
-import qualified Hasql.Postgres.TemplateConverter as TemplateConverter
 import qualified Hasql.Postgres.PTI as PTI
 import qualified Hasql.Postgres.Mapping as Mapping
+import qualified Hasql.Postgres.Session.Transaction as Transaction
+import qualified Hasql.Postgres.Session.Execution as Execution
 import qualified Language.Haskell.TH as TH
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import qualified Data.Text.Encoding as Text
@@ -52,16 +50,17 @@ instance Backend.Backend Postgres where
     Result Mapping.Environment (Maybe ByteString)
   data Connection Postgres = 
     Connection {
-      connection :: !PQ.Connection, 
-      preparer :: !StatementPreparer.StatementPreparer,
-      transactionState :: !(IORef (Maybe Word)),
-      environment :: Mapping.Environment
+      connection :: !PQ.Connection,
+      executionEnv :: !Execution.Env,
+      transactionEnv :: !Transaction.Env,
+      mappingEnv :: !Mapping.Environment
     }
   connect p =
     do
       r <- Connector.open settings
       c <- either (\e -> throwIO $ Backend.CantConnect $ fromString $ show e) return r
-      Connection <$> pure c <*> StatementPreparer.new c <*> newIORef Nothing <*> getIntegerDatetimes c
+      ee <- Execution.newEnv c
+      Connection <$> pure c <*> pure ee <*> Transaction.newEnv ee <*> getIntegerDatetimes c
     where
       settings =
         Connector.Settings (host p) (port p) (user p) (password p) (database p)
@@ -74,94 +73,73 @@ instance Backend.Backend Postgres where
               _ -> False
   disconnect c =
     PQ.finish (connection c)
-  execute s c = 
-    ResultHandler.unit =<< execute (liftStatement c s) c
-  executeAndGetMatrix s c =
-    execute (liftStatement c s) c >>=
-    (fmap . fmap . fmap) (Result (environment c)) . ResultHandler.rowsVector
-  executeAndStream s c =
-    do
-      name <- declareCursor
-      return $ 
-        let loop = do
-              chunk <- lift $ fetchFromCursor name
-              null <- lift $ ListT.null chunk
-              guard $ not null
-              (fmap . fmap) packResult chunk <> loop
-            in loop
+  execute s = 
+    do  s' <- liftStatement s
+        liftExecution $ Execution.unitResult =<< Execution.statement s'
+  executeAndGetMatrix s =
+    do  s' <- liftStatement s
+        c <- id
+        (fmap . fmap . fmap . fmap) (Result (mappingEnv c)) $ liftExecution $ 
+          Execution.vectorResult =<< Execution.statement s'
+  executeAndStream s =
+    do  s' <- liftStatement s
+        c <- id
+        return $ return $ liftTransactionStream (Transaction.streamWithCursor s') c
+  executeAndCountEffects s =
+    do  s' <- liftStatement s
+        liftExecution $ Execution.countResult =<< Execution.statement s'
+  beginTransaction (isolation, write) = 
+    liftTransaction $ Transaction.beginTransaction (mapIsolation isolation, write)
     where
-      packResult = 
-        Result (environment c)
-      nextName = 
-        do
-          counterM <- readIORef (transactionState c)
-          counter <- maybe (throwIO Backend.NotInTransaction) return counterM
-          writeIORef (transactionState c) (Just (succ counter))
-          return $ fromString $ 'v' : show counter
-      declareCursor =
-        do
-          name <- nextName
-          ResultHandler.unit =<< execute (Statement.declareCursor name (liftStatement c s)) c
-          return name
-      fetchFromCursor name =
-        ResultHandler.rowsStream =<< execute (Statement.fetchFromCursor name) c
-      closeCursor name =
-        ResultHandler.unit =<< execute (Statement.closeCursor name) c
-  executeAndCountEffects s c =
-    do
-      b <- ResultHandler.rowsAffected =<< execute (liftStatement c s) c
-      case Atto.parseOnly (Atto.decimal <* Atto.endOfInput) b of
-        Left m -> 
-          throwIO $ Backend.UnexpectedResult (fromString m)
-        Right r ->
-          return r
-  beginTransaction (isolation, write) c = 
-    do
-      writeIORef (transactionState c) (Just 0)
-      ResultHandler.unit =<< execute (Statement.beginTransaction (statementIsolation, write)) c
-    where
-      statementIsolation =
-        case isolation of
+      mapIsolation =
+        \case
           Backend.Serializable    -> Statement.Serializable
           Backend.RepeatableReads -> Statement.RepeatableRead
           Backend.ReadCommitted   -> Statement.ReadCommitted
           Backend.ReadUncommitted -> Statement.ReadCommitted
-  finishTransaction commit c =
-    do
-      ResultHandler.unit =<< execute (bool Statement.abortTransaction Statement.commitTransaction commit) c
-      writeIORef (transactionState c) Nothing
+  finishTransaction commit =
+    liftTransaction $ Transaction.finishTransaction commit
 
-liftStatement :: Backend.Connection Postgres -> Backend.Statement Postgres -> Statement.Statement
-liftStatement c (template, arguments, preparable) =
+
+-- |
+-- Just a convenience alias to a function on connection.
+-- Useful since most of the 'Backend' API is made up of such functions.
+type M a =
+  Backend.Connection Postgres -> a
+
+liftExecution :: Execution.M a -> M (IO a)
+liftExecution m =
+  \c -> Execution.run (executionEnv c) m >>= either (throwIO . mapExecutionError) return
+
+liftTransaction :: Transaction.M a -> M (IO a)
+liftTransaction m =
+  \c -> Transaction.run (transactionEnv c) m >>= either (throwIO . mapError) return
+  where
+    mapError =
+      \case
+        Transaction.NotInTransaction -> Backend.NotInTransaction
+        Transaction.ExecutionError e -> mapExecutionError e
+
+liftStatement :: Backend.Statement Postgres -> M Statement.Statement
+liftStatement (template, arguments, preparable) c =
   (,,) template (map liftArgument arguments) preparable
   where
     liftArgument (StatementArgument o f) = 
-      (,) o ((,) <$> f (environment c) <*> pure PQ.Binary)
+      (,) o ((,) <$> f (mappingEnv c) <*> pure PQ.Binary)
 
-execute :: Statement.Statement -> Backend.Connection Postgres -> IO ResultParser.Result
-execute s c =
-  ResultParser.parse (connection c) =<< do
-    let (template, params, preparable) = s
-    convertedTemplate <- convertTemplate template
-    case preparable of
-      True -> do
-        let (tl, vl) = unzip params
-        key <- StatementPreparer.prepare convertedTemplate tl (preparer c)
-        PQ.execPrepared (connection c) key vl PQ.Binary
-      False -> do
-        let params' = map (\(t, v) -> (\(vb, vf) -> (t, vb, vf)) <$> v) params
-        PQ.execParams (connection c) convertedTemplate params' PQ.Binary
+liftTransactionStream :: Transaction.Stream -> M (Backend.Stream Postgres)
+liftTransactionStream s c =
+  (fmap . fmap) (Result (mappingEnv c)) $ hoist (flip liftTransaction c) s
 
-convertTemplate :: ByteString -> IO ByteString
-convertTemplate t =
-  case TemplateConverter.convert t of
-    Left m -> 
-      throwIO $ Backend.UnparsableTemplate $ 
-        "Template: " <> Text.decodeLatin1 t <> ". " <>
-        "Error: " <> m <> "."
-    Right r ->
-      return r
-
+mapExecutionError :: Execution.Error -> Backend.Error
+mapExecutionError =
+  \case
+    Execution.UnexpectedResult m     -> Backend.UnexpectedResult m
+    Execution.ErroneousResult m      -> Backend.ErroneousResult m
+    Execution.UnparsableTemplate t m -> Backend.UnparsableTemplate $
+                                        "Message: " <> m <> "; " <>
+                                        "Template: " <> fromString (show t)
+    Execution.TransactionConflict    -> Backend.TransactionConflict
 
 
 -- * Mappings

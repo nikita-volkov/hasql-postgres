@@ -26,6 +26,10 @@ import Control.Monad.Trans.Either as Exports
 -------------------------
 import ListT as Exports (ListT)
 
+-- mmorph
+-------------------------
+import Control.Monad.Morph as Exports
+
 -- hashable
 -------------------------
 import Data.Hashable as Exports (Hashable(..))
