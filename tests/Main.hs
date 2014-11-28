@@ -35,6 +35,13 @@ main =
   htfMain $ htf_thisModulesTests
 
 
+test_sameStatementUsedOnDifferentTypes =
+  session1 $ do
+    liftIO . assertEqual (Just (Identity ("abc" :: Text))) =<< do 
+      H.tx Nothing $ H.single $ [H.q|SELECT ?|] ("abc" :: Text)
+    liftIO . assertEqual (Just (Identity True)) =<< do 
+      H.tx Nothing $ H.single $ [H.q|SELECT ?|] True
+
 test_rendering =
   assertEqual (Just $ head rows) =<< do 
     session1 $ do
