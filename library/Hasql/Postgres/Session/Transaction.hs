@@ -17,14 +17,13 @@ import qualified Hasql.Postgres.Statement as Statement
 
 data Env =
   Env {
-    connection :: PQ.Connection,
     executionEnv :: Execution.Env,
     nameCounter :: IORef (Maybe Word16)
   }
 
-newEnv :: PQ.Connection -> IO Env
-newEnv c =
-  Env <$> pure c <*> Execution.newEnv c <*> newIORef Nothing
+newEnv :: Execution.Env -> IO Env
+newEnv execution =
+  Env <$> pure execution <*> newIORef Nothing
 
 
 -- * Monad

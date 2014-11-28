@@ -59,7 +59,8 @@ instance Backend.Backend Postgres where
     do
       r <- Connector.open settings
       c <- either (\e -> throwIO $ Backend.CantConnect $ fromString $ show e) return r
-      Connection <$> pure c <*> Execution.newEnv c <*> Transaction.newEnv c <*> getIntegerDatetimes c
+      ee <- Execution.newEnv c
+      Connection <$> pure c <*> pure ee <*> Transaction.newEnv ee <*> getIntegerDatetimes c
     where
       settings =
         Connector.Settings (host p) (port p) (user p) (password p) (database p)
