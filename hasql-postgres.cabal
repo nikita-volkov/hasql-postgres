@@ -65,7 +65,6 @@ library
     Hasql.Postgres.TemplateConverter
     Hasql.Postgres.TemplateConverter.Parser
     Hasql.Postgres.Session.ResultProcessing
-    Hasql.Postgres.Session.StatementPreparation
     Hasql.Postgres.Session.Transaction
     Hasql.Postgres.Session.Execution
   exposed-modules:
