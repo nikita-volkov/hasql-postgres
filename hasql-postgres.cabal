@@ -128,7 +128,7 @@ test-suite library-tests
     -- parsers:
     attoparsec >= 0.10 && < 0.13,
     -- database:
-    hasql == 0.2.*,
+    hasql == 0.4.*,
     postgresql-binary == 0.5.*,
     postgresql-libpq == 0.9.*,
     -- data:
@@ -171,7 +171,7 @@ test-suite tests
   build-depends:
     hasql-postgres,
     hasql-backend,
-    hasql == 0.2.*,
+    hasql == 0.4.*,
     -- testing:
     HTF == 0.12.*,
     quickcheck-instances == 0.3.*,
@@ -216,7 +216,7 @@ benchmark competition
     postgresql-simple == 0.4.*,
     hasql-postgres,
     hasql-backend,
-    hasql == 0.2.*,
+    hasql == 0.4.*,
     -- random:
     QuickCheck == 2.7.*,
     quickcheck-instances == 0.3.*,
