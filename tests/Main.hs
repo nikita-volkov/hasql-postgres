@@ -77,28 +77,6 @@ test_autoIncrement =
       id2 <- (fmap . fmap) runIdentity $ single $ [q|INSERT INTO a (v) VALUES (2) RETURNING id|]
       return (id1, id2)
 
-test_transactionConflictResolution =
-  do
-    session1 $ tx Nothing $ do
-      unit [q|DROP TABLE IF EXISTS a|]
-      unit [q|CREATE TABLE a ("id" int8, "v" int8, PRIMARY KEY ("id"))|]
-      unit [q|INSERT INTO a (id, v) VALUES ('7', '0')|]
-    semaphore <- SSem.new (-1)
-    SlaveThread.fork $ session >> SSem.signal semaphore
-    SlaveThread.fork $ session >> SSem.signal semaphore
-    SSem.wait semaphore
-    r <- session1 $ tx Nothing $ single [q|SELECT v FROM a WHERE id='7'|]
-    assertEqual (Just (Identity (200 :: Int))) r
-  where
-    session =
-      session1 $ do
-        replicateM 100 $ tx (Just (Serializable, True)) $ do
-          Just (Identity (v :: Int)) <- single [q|SELECT v FROM a WHERE id='7'|]
-          unit $ [q|UPDATE a SET v=? WHERE id='7'|] (succ v)
-
-test_transaction =
-  unitTestPending ""
-
 test_cursorResultsOrder =
   session1 $ do
     r :: [Word] <-
