@@ -35,13 +35,14 @@ import qualified ListT
 -- |
 -- Settings of a Postgres backend.
 data Postgres =
-  Postgres {
-    host :: ByteString,
-    port :: Word16,
-    user :: Text,
-    password :: Text,
-    database :: Text
-  }
+    PostgresParams {
+      host :: ByteString,
+      port :: Word16,
+      user :: Text,
+      password :: Text,
+      database :: Text
+    }
+  | PostgresRaw ByteString
 
 instance Backend.Backend Postgres where
   data StatementArgument Postgres = 
@@ -63,7 +64,9 @@ instance Backend.Backend Postgres where
       Connection <$> pure c <*> pure ee <*> Transaction.newEnv ee <*> getIntegerDatetimes c
     where
       settings =
-        Connector.Settings (host p) (port p) (user p) (password p) (database p)
+        case p of
+          (PostgresRaw r) -> Connector.SettingsRaw r
+          params -> Connector.SettingsParams (host params) (port params) (user params) (password params) (database params)
       getIntegerDatetimes c =
         fmap parseResult $ PQ.parameterStatus c "integer_datetimes"
         where

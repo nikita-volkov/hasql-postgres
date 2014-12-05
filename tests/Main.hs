@@ -227,7 +227,7 @@ session1 :: (forall s. Session Postgres s IO r) -> IO r
 session1 =
   session backendSettings poolSettings
   where
-    backendSettings = Postgres "localhost" 5432 "postgres" "" "postgres"
+    backendSettings = PostgresParams "localhost" 5432 "postgres" "" "postgres"
     poolSettings = fromJust $ sessionSettings 6 30
 
 -- ** Property

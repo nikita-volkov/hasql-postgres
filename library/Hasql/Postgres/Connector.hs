@@ -11,14 +11,14 @@ import qualified Data.Text.Encoding as TE
 
 
 data Settings =
-  Settings {
-    host :: ByteString,
-    port :: Word16,
-    user :: Text,
-    password :: Text,
-    database :: Text
-  }
-
+    SettingsParams {
+      host :: ByteString,
+      port :: Word16,
+      user :: Text,
+      password :: Text,
+      database :: Text
+    }
+  | SettingsRaw ByteString
 
 data Error =
   BadStatus (Maybe ByteString) |
@@ -49,6 +49,7 @@ open s =
 
 
 settingsBS :: Settings -> ByteString
+settingsBS (SettingsRaw r) = r
 settingsBS s =
   BL.toStrict $ BB.toLazyByteString $ mconcat $ intersperse (BB.char7 ' ') $ catMaybes $
   [
