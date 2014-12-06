@@ -15,7 +15,7 @@ main = do
   rows :: [(Text, Day)] <- 
     liftIO $ replicateM 100 $ 
       (,) <$> Q.generate Q.arbitrary <*> Q.generate Q.arbitrary
-  H.session (H.Postgres host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
+  H.session (H.PostgresParams host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
     H.tx Nothing $ do
       H.unit [H.q|DROP TABLE IF EXISTS a|]
       H.unit [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
