@@ -191,13 +191,13 @@ microsDiffTimeGen = do
 
 selectSelf :: 
   Backend.Mapping Postgres a => 
-  a -> (forall s. Session Postgres s IO (Maybe a))
+  a -> Session Postgres s IO (Maybe a)
 selectSelf v =
   tx Nothing $ (fmap . fmap) runIdentity $ single $ [q| SELECT ? |] v
 
 validMappingSession :: 
   Backend.Mapping Postgres a => Typeable a => Show a => Eq a => 
-  a -> (forall s. Session Postgres s IO ())
+  a -> Session Postgres s IO ()
 validMappingSession v =
   selectSelf v >>= liftIO . assertEqual (Just v)
 
