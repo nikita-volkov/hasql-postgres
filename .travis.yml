@@ -42,6 +42,7 @@ install:
       cabal install "text == 1.0.*";
       cabal install "attoparsec == 0.10.*";
       cabal install "hashable == 1.1.*";
+      cabal install "hashtables == 1.1.*";
       cabal install "scientific == 0.2.*";
       cabal install "QuickCheck == 2.6.*";
       cabal install "list-t == 0.2.*";
