@@ -35,6 +35,18 @@ main =
   htfMain $ htf_thisModulesTests
 
 
+test_wrongPort =
+  let 
+    backendSettings = H.Postgres "localhost" 1 "postgres" "" "postgres"
+    poolSettings = fromJust $ sessionSettings 6 30
+    io =
+      H.session backendSettings poolSettings $ do
+        H.tx Nothing $ H.unit [H.q|DROP TABLE IF EXISTS a|]
+    in 
+      assertThrowsIO io $ \case
+        H.CantConnect _ -> True
+        _ -> False
+
 test_sameStatementUsedOnDifferentTypes =
   session1 $ do
     liftIO . assertEqual (Just (Identity ("abc" :: Text))) =<< do 
