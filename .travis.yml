@@ -37,21 +37,28 @@ install:
   - 
     if [ $lower_bound_dependencies -eq 1 ];
     then
-      cabal install -j --avoid-reinstalls "transformers == 0.2.*";
-      cabal install -j --avoid-reinstalls "bytestring == 0.10.0.0";
-      cabal install -j --avoid-reinstalls "text == 1.0.*";
-      cabal install -j --avoid-reinstalls "attoparsec == 0.10.*";
-      cabal install -j --avoid-reinstalls "hashable == 1.1.*";
-      cabal install -j --avoid-reinstalls "hashtables == 1.1.*";
-      cabal install -j --avoid-reinstalls "scientific == 0.2.*";
-      cabal install -j --avoid-reinstalls "QuickCheck == 2.6.*";
-      cabal install -j --avoid-reinstalls "list-t == 0.2.*";
+      constraint_options=(
+        "--constraint=transformers==0.3.*"
+        "--constraint=mtl-prelude==1.*"
+        "--constraint=bytestring==0.10.*"
+        "--constraint=text==1.0.*"
+        "--constraint=attoparsec==0.10.*"
+        "--constraint=hashable==1.1.*"
+        "--constraint=hashtables==1.1.*"
+        "--constraint=scientific==0.2.*"
+        "--constraint=time==1.4.*"
+        "--constraint=list-t==0.2.*"
+      );
     fi;
-  # Install the remaining dependencies
-  - cabal install -j --avoid-reinstalls --only-dependencies --enable-tests --enable-benchmarks
   # Install the "haskell-src-exts" implicit dependency
-  - cabal install -j --avoid-reinstalls happy
-  # Configure and build
+  - cabal install -j ${constraint_options[@]} happy
+  # Install the library dependencies
+  - cabal install -j ${constraint_options[@]} --only-dependencies
+  # Build the library
+  - cabal build
+  # Install the remaining dependencies
+  - cabal install -j --only-dependencies --enable-tests --enable-benchmarks --force-reinstalls
+  # Configure and build the remaining stuff
   - cabal configure --enable-tests --enable-benchmarks && cabal build
   # Optionally install an arbitrary PostgreSQL version:
   - 
