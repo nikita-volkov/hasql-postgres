@@ -6,8 +6,6 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy.Builder as BB
 import qualified Data.ByteString.Lazy.Builder.ASCII as BB
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
 
 
 -- |
@@ -15,7 +13,7 @@ import qualified Data.Text.Encoding as TE
 data Settings =
   -- | 
   -- A host, a port, a user, a password and a database.
-  ParamSettings ByteString Word16 Text Text Text |
+  ParamSettings ByteString Word16 ByteString ByteString ByteString |
   -- | 
   -- All settings encoded in a single byte string according to 
   -- <http://www.postgresql.org/docs/9.4/static/libpq-connect.html#LIBPQ-CONNSTRING the PostgreSQL format>.
@@ -61,14 +59,14 @@ settingsBS =
         mappend (BB.string7 "port=") . BB.word16Dec <$> 
         partial (/= 0) port
         ,
-        mappend (BB.string7 "user=") . BB.byteString . TE.encodeUtf8 <$> 
-        partial (not . T.null) user
+        mappend (BB.string7 "user=") . BB.byteString <$> 
+        partial (not . B.null) user
         ,
-        mappend (BB.string7 "password=") . BB.byteString . TE.encodeUtf8 <$> 
-        partial (not . T.null) password
+        mappend (BB.string7 "password=") . BB.byteString <$> 
+        partial (not . B.null) password
         ,
-        mappend (BB.string7 "dbname=") . BB.byteString . TE.encodeUtf8 <$> 
-        partial (not . T.null) database
+        mappend (BB.string7 "dbname=") . BB.byteString <$> 
+        partial (not . B.null) database
       ]
     StringSettings x -> x
 
