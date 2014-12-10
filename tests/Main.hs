@@ -35,6 +35,18 @@ main =
   htfMain $ htf_thisModulesTests
 
 
+test_wrongPort =
+  let 
+    backendSettings = H.Postgres "localhost" 1 "postgres" "" "postgres"
+    poolSettings = fromJust $ sessionSettings 6 30
+    io =
+      H.session backendSettings poolSettings $ do
+        H.tx Nothing $ H.unit [H.q|DROP TABLE IF EXISTS a|]
+    in 
+      assertThrowsIO io $ \case
+        H.CantConnect _ -> True
+        _ -> False
+
 test_sameStatementUsedOnDifferentTypes =
   session1 $ do
     liftIO . assertEqual (Just (Identity ("abc" :: Text))) =<< do 
@@ -76,28 +88,6 @@ test_autoIncrement =
       id1 <- (fmap . fmap) runIdentity $ single $ [q|INSERT INTO a (v) VALUES (1) RETURNING id|]
       id2 <- (fmap . fmap) runIdentity $ single $ [q|INSERT INTO a (v) VALUES (2) RETURNING id|]
       return (id1, id2)
-
-test_transactionConflictResolution =
-  do
-    session1 $ tx Nothing $ do
-      unit [q|DROP TABLE IF EXISTS a|]
-      unit [q|CREATE TABLE a ("id" int8, "v" int8, PRIMARY KEY ("id"))|]
-      unit [q|INSERT INTO a (id, v) VALUES ('7', '0')|]
-    semaphore <- SSem.new (-1)
-    SlaveThread.fork $ session >> SSem.signal semaphore
-    SlaveThread.fork $ session >> SSem.signal semaphore
-    SSem.wait semaphore
-    r <- session1 $ tx Nothing $ single [q|SELECT v FROM a WHERE id='7'|]
-    assertEqual (Just (Identity (200 :: Int))) r
-  where
-    session =
-      session1 $ do
-        replicateM 100 $ tx (Just (Serializable, True)) $ do
-          Just (Identity (v :: Int)) <- single [q|SELECT v FROM a WHERE id='7'|]
-          unit $ [q|UPDATE a SET v=? WHERE id='7'|] (succ v)
-
-test_transaction =
-  unitTestPending ""
 
 test_cursorResultsOrder =
   session1 $ do
@@ -213,13 +203,13 @@ microsDiffTimeGen = do
 
 selectSelf :: 
   Backend.Mapping Postgres a => 
-  a -> (forall s. Session Postgres s IO (Maybe a))
+  a -> Session Postgres s IO (Maybe a)
 selectSelf v =
   tx Nothing $ (fmap . fmap) runIdentity $ single $ [q| SELECT ? |] v
 
 validMappingSession :: 
   Backend.Mapping Postgres a => Typeable a => Show a => Eq a => 
-  a -> (forall s. Session Postgres s IO ())
+  a -> Session Postgres s IO ()
 validMappingSession v =
   selectSelf v >>= liftIO . assertEqual (Just v)
 
