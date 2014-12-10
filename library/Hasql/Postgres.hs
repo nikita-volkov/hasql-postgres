@@ -13,7 +13,8 @@
 -- 
 module Hasql.Postgres 
 (
-  Postgres(..), 
+  Postgres(..),
+  Connector.Settings(..),
 )
 where
 
@@ -33,16 +34,11 @@ import qualified ListT
 
 
 -- |
--- Settings of a Postgres backend.
-data Postgres =
-    PostgresParams {
-      host :: ByteString,
-      port :: Word16,
-      user :: Text,
-      password :: Text,
-      database :: Text
-    }
-  | PostgresRaw ByteString
+-- Just an alias to settings,
+-- which is used as a more descriptive identifier type of the backend.
+type Postgres = 
+  Connector.Settings
+
 
 instance Backend.Backend Postgres where
   data StatementArgument Postgres = 
@@ -56,17 +52,13 @@ instance Backend.Backend Postgres where
       transactionEnv :: !Transaction.Env,
       mappingEnv :: !Mapping.Environment
     }
-  connect p =
+  connect settings =
     do
       r <- Connector.open settings
       c <- either (\e -> throwIO $ Backend.CantConnect $ fromString $ show e) return r
       ee <- Execution.newEnv c
       Connection <$> pure c <*> pure ee <*> Transaction.newEnv ee <*> getIntegerDatetimes c
     where
-      settings =
-        case p of
-          (PostgresRaw r) -> Connector.SettingsRaw r
-          params -> Connector.SettingsParams (host params) (port params) (user params) (password params) (database params)
       getIntegerDatetimes c =
         fmap parseResult $ PQ.parameterStatus c "integer_datetimes"
         where
