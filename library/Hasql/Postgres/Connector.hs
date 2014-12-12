@@ -18,6 +18,7 @@ data Settings =
   -- All settings encoded in a single byte string according to 
   -- <http://www.postgresql.org/docs/9.4/static/libpq-connect.html#LIBPQ-CONNSTRING the PostgreSQL format>.
   StringSettings ByteString
+  deriving (Show)
 
 data Error =
   BadStatus (Maybe ByteString) |
