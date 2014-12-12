@@ -34,7 +34,7 @@ main =
 
       subject "hasql" $ do
         pause
-        H.session (H.Postgres host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
+        H.session (H.ParamSettings host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
           H.tx Nothing $ do
             H.unit [H.q|DROP TABLE IF EXISTS a|]
             H.unit [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
@@ -110,7 +110,7 @@ main =
 
       subject "hasql" $ do
         pause
-        H.session (H.Postgres host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
+        H.session (H.ParamSettings host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
           H.tx Nothing $ do
             H.unit [H.q|DROP TABLE IF EXISTS a|]
             H.unit [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
@@ -183,7 +183,7 @@ main =
 
       subject "hasql" $ do
         pause
-        H.session (H.Postgres host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
+        H.session (H.ParamSettings host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
           H.tx Nothing $ do
             H.unit [H.q|DROP TABLE IF EXISTS a|]
             H.unit [H.q|CREATE TABLE a (id SERIAL NOT NULL, balance INT8, PRIMARY KEY (id))|]

@@ -20,7 +20,7 @@ import qualified SlaveThread
 import qualified Control.Concurrent.SSem as SSem
 import qualified Hasql.Backend as Backend
 import qualified Hasql as H
-import qualified Hasql.Postgres as H
+import qualified Hasql.Postgres as HP
 import qualified Data.Scientific as Scientific
 import qualified Data.Vector as Vector
 
@@ -37,7 +37,7 @@ main =
 
 test_wrongPort =
   let 
-    backendSettings = H.Postgres "localhost" 1 "postgres" "" "postgres"
+    backendSettings = HP.ParamSettings "localhost" 1 "postgres" "" "postgres"
     poolSettings = fromJust $ sessionSettings 6 30
     io =
       H.session backendSettings poolSettings $ do
@@ -217,7 +217,7 @@ session1 :: (forall s. Session Postgres s IO r) -> IO r
 session1 =
   session backendSettings poolSettings
   where
-    backendSettings = Postgres "localhost" 5432 "postgres" "" "postgres"
+    backendSettings = HP.ParamSettings "localhost" 5432 "postgres" "" "postgres"
     poolSettings = fromJust $ sessionSettings 6 30
 
 -- ** Property
