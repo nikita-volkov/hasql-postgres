@@ -37,6 +37,12 @@ class ArrayMapping a where
   arrayEncode :: Environment -> a -> Array.Data
   arrayDecode :: Environment -> Array.Data -> Either Text a
 
+-- |
+-- Used to create a query parameter out of raw bytes and let Postgres
+-- attempt to coerce it to the proper column type.
+newtype Unknown = Unknown ByteString
+unknownBytes :: Unknown -> ByteString
+unknownBytes (Unknown a) = a
 
 instance Mapping a => Mapping (Maybe a) where
   oid = 
@@ -263,6 +269,12 @@ let
         [|PTI.uuid|]
         [|const $ Encoder.uuid|]
         [|const $ Decoder.uuid|]
+      ,
+      (,,,)
+        [t|Unknown|]
+        [|PTI.unknown|]
+        [|const $ unknownBytes|]
+        [|const $ Right . Unknown|]
     ]
   in
     fmap concat $ forM settings $ \(t, pti, encoder, decoder) ->
