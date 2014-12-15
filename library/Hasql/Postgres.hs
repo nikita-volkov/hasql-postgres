@@ -15,6 +15,7 @@ module Hasql.Postgres
 (
   Postgres(..),
   Connector.Settings(..),
+  Mapping.Unknown(..)
 )
 where
 
@@ -387,3 +388,8 @@ instance Backend.Mapping Postgres UUID where
   renderValue = renderValueUsingMapping
   parseResult = parseResultUsingMapping
 
+-- |
+-- Maps to @unknown@, which allows Postgres to try coercing the value
+instance Backend.Mapping Postgres Mapping.Unknown where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
