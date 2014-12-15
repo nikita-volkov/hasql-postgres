@@ -14,7 +14,7 @@ import qualified Data.Text.Lazy
 import qualified Data.ByteString
 import qualified Data.ByteString.Char8
 import qualified Data.ByteString.Lazy
-import qualified Data.ByteString.Lazy.Char8
+import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified ListT
 import qualified SlaveThread
 import qualified Control.Concurrent.SSem as SSem
@@ -23,6 +23,7 @@ import qualified Hasql as H
 import qualified Hasql.Postgres as HP
 import qualified Data.Scientific as Scientific
 import qualified Data.Vector as Vector
+import qualified Data.Binary as Bin
 
 
 type Text = Data.Text.Text
@@ -127,7 +128,7 @@ test_mappingOfUnknownEncodingText =
 test_mappingOfUnknownEncodingInt =
   assertEqual (Just (Identity (12345 :: Int))) =<< do 
     session1 $ tx Nothing $ do
-      single $ [q| SELECT (? :: int8)|] (HP.Unknown "12345")
+      single $ [q| SELECT (? :: int8)|] (HP.Unknown . BL.toStrict $ Bin.encode (12345 :: Int))
 
 test_mappingOfUnknownEncodingBool =
   assertEqual (Just (Identity (True))) =<< do 
