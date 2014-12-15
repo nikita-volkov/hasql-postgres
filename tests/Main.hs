@@ -35,6 +35,14 @@ main =
   htfMain $ htf_thisModulesTests
 
 
+test_enum =
+  session1 $ do
+    H.tx Nothing $ do
+      H.unit [H.q| DROP TYPE IF EXISTS mood |]
+      H.unit [H.q| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
+    liftIO . assertEqual (Just (Identity ("ok" :: Text))) =<< do 
+      H.tx Nothing $ H.single $ [H.q|SELECT (? :: mood)|] ("ok" :: Text)
+
 test_wrongPort =
   let 
     backendSettings = HP.ParamSettings "localhost" 1 "postgres" "" "postgres"
