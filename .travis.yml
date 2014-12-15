@@ -47,7 +47,6 @@ install:
         "--constraint=hashtables==1.1.*"
         "--constraint=scientific==0.2.*"
         "--constraint=time==1.4.*"
-        "--constraint=list-t==0.2.*"
       );
     fi;
   # Install the "haskell-src-exts" implicit dependency

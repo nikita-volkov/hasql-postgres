@@ -1,7 +1,7 @@
 name:
   hasql-postgres
 version:
-  0.8.0
+  0.8.1
 synopsis:
   A "PostgreSQL" backend for the "hasql" library
 description:
@@ -89,7 +89,7 @@ library
     hashable >= 1.1 && < 1.3,
     -- control:
     either == 4.*,
-    list-t < 0.4,
+    list-t < 0.5,
     mmorph == 1.0.*,
     transformers >= 0.3 && < 0.5,
     -- errors:
@@ -142,7 +142,7 @@ test-suite library-tests
     hashable >= 1.1 && < 1.3,
     -- control:
     either == 4.*,
-    list-t < 0.4,
+    list-t < 0.5,
     mmorph == 1.0.*,
     transformers >= 0.3 && < 0.5,
     -- errors:
@@ -188,7 +188,7 @@ test-suite tests
     bytestring >= 0.10 && < 0.11,
     hashable >= 1.1 && < 1.3,
     -- general:
-    list-t < 0.4,
+    list-t < 0.5,
     mtl-prelude < 3,
     base-prelude >= 0.1.3 && < 0.2,
     base >= 4.5 && < 4.8
@@ -230,7 +230,7 @@ benchmark competition
     -- general:
     monad-control == 0.3.*,
     deepseq == 1.3.*,
-    list-t < 0.4,
+    list-t < 0.5,
     mtl-prelude < 3,
     base-prelude >= 0.1.3 && < 0.2,
     base >= 4.5 && < 4.8
