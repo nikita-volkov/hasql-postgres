@@ -14,6 +14,13 @@ import qualified PostgreSQLBinary.Decoder as Decoder
 
 
 -- |
+-- Used to create a query parameter out of raw bytes and let Postgres
+-- attempt to coerce it to the proper column type.
+newtype Unknown = 
+  Unknown ByteString
+
+
+-- |
 -- Server settings.
 -- 
 -- * @integer_datetimes@
@@ -37,12 +44,6 @@ class ArrayMapping a where
   arrayEncode :: Environment -> a -> Array.Data
   arrayDecode :: Environment -> Array.Data -> Either Text a
 
--- |
--- Used to create a query parameter out of raw bytes and let Postgres
--- attempt to coerce it to the proper column type.
-newtype Unknown = Unknown ByteString
-unknownBytes :: Unknown -> ByteString
-unknownBytes (Unknown a) = a
 
 instance Mapping a => Mapping (Maybe a) where
   oid = 
@@ -273,7 +274,7 @@ let
       (,,,)
         [t|Unknown|]
         [|PTI.unknown|]
-        [|const $ unknownBytes|]
+        [|const $ \(Unknown x) -> x|]
         [|const $ Right . Unknown|]
     ]
   in
