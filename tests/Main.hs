@@ -119,6 +119,21 @@ test_select =
 -- * Mappings
 -------------------------
 
+test_mappingOfUnknownEncodingText =
+  assertEqual (Just (Identity ("12345" :: Text))) =<< do 
+    session1 $ tx Nothing $ do
+      single $ [q| SELECT (? :: text)|] (HP.Unknown "12345")
+
+test_mappingOfUnknownEncodingInt =
+  assertEqual (Just (Identity (12345 :: Int))) =<< do 
+    session1 $ tx Nothing $ do
+      single $ [q| SELECT (? :: int8)|] (HP.Unknown "12345")
+
+test_mappingOfUnknownEncodingBool =
+  assertEqual (Just (Identity (True))) =<< do 
+    session1 $ tx Nothing $ do
+      single $ [q| SELECT (? :: bool)|] (HP.Unknown "t")
+
 test_mappingOfMaybe =
   session1 $ do
     validMappingSession (Just '!')
