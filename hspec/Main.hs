@@ -11,9 +11,7 @@ import Data.Time
 import qualified Data.Text
 import qualified Data.Text.Lazy
 import qualified Data.ByteString
-import qualified Data.ByteString.Char8
 import qualified Data.ByteString.Lazy
-import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified ListT
 import qualified SlaveThread
 import qualified Control.Concurrent.SSem as SSem
@@ -22,7 +20,7 @@ import qualified Hasql as H
 import qualified Hasql.Postgres as HP
 import qualified Data.Scientific as Scientific
 import qualified Data.Vector as Vector
-import qualified Data.Binary as Bin
+import qualified PostgreSQLBinary.Encoder as PBE
 
 
 type Text = Data.Text.Text
@@ -119,22 +117,27 @@ main =
     describe "Mapping of" $ do
 
       describe "Unknown" $ do
-        
-        it "encodes and decodes Text" $ do
-          (flip shouldBe) (Just (Identity ("12345" :: Text))) =<< do 
-            session1 $ tx Nothing $ single $ 
-              [q| SELECT (? :: text)|] (HP.Unknown "12345")
 
-        it "encodes and decodes Bool" $ do
-          (flip shouldBe) (Just (Identity (True))) =<< do 
-            session1 $ tx Nothing $ single $ 
-              [q| SELECT (? :: bool)|] (HP.Unknown "t")
+        it "encodes Int64 into \"int8\" using a \"postgresql-binary\" encoder" $ do
+          session1 $ tx Nothing $ unit $
+            [q| SELECT (? :: int8) |] 
+              (HP.Unknown . PBE.int8 . Left $ 12345)
 
-        it "encodes and decodes Int using a \"binary\" encoder" $ do
-          (flip shouldBe) (Just (Identity (12345 :: Int))) =<< do 
-            session1 $ tx Nothing $ single $
-              [q| SELECT (? :: int8)|] 
-                (HP.Unknown . BL.toStrict $ Bin.encode (12345 :: Int))
+        it "does not encode Int64 into \"int4\" using a \"postgresql-binary\" encoder" $ do
+          (flip shouldThrow) (\case H.ErroneousResult _ -> True; _ -> False) $
+            session1 $ tx Nothing $ unit $
+              [q| SELECT (? :: int4)|] 
+                (HP.Unknown . PBE.int8 . Left $ 12345)
+
+        it "encodes Int64 into \"int8\" using a \"postgresql-binary\" encoder" $ do
+          session1 $ tx Nothing $ unit $
+            [q| SELECT (? :: int8) |] 
+              (HP.Unknown . PBE.int8 . Left $ 12345)
+
+        it "encodes Day into \"date\" using a \"postgresql-binary\" encoder" $ do
+          session1 $ tx Nothing $ unit $
+            [q| SELECT (? :: date) |] 
+              (HP.Unknown . PBE.date $ (read "1900-01-01" :: Day))
 
       describe "Maybe" $ do
         it "" $ do
