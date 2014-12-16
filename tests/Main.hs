@@ -43,6 +43,21 @@ test_enum =
     liftIO . assertEqual (Just (Identity ("ok" :: Text))) =<< do 
       H.tx Nothing $ H.single $ [H.q|SELECT (? :: mood)|] ("ok" :: Text)
 
+test_enumOnTable =
+  session1 $ do
+    H.tx Nothing $ do
+      H.unit [H.q| DROP TABLE IF EXISTS a |]
+      H.unit [H.q| DROP TYPE IF EXISTS mood |]
+      H.unit [H.q| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
+      H.unit [H.q| CREATE TABLE a (id SERIAL NOT NULL, 
+                                   mood mood NOT NULL,
+                                   PRIMARY KEY (id)) |]
+      H.unit [H.q| INSERT INTO a (mood) VALUES ('ok') |]
+      H.unit [H.q| INSERT INTO a (mood) VALUES ('ok') |]
+      H.unit [H.q| INSERT INTO a (mood) VALUES ('happy') |]
+    liftIO . assertEqual ([1, 2] :: [Int]) . fmap runIdentity =<< do 
+      H.tx Nothing $ H.list $ [H.q|SELECT id FROM a WHERE mood = ?|] ("ok" :: Text)
+
 test_wrongPort =
   let 
     backendSettings = HP.ParamSettings "localhost" 1 "postgres" "" "postgres"
