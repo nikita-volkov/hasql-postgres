@@ -121,11 +121,11 @@ test-suite doctest
     Haskell2010
 
 
-test-suite htf
+test-suite hspec
   type:
     exitcode-stdio-1.0
   hs-source-dirs:
-    htf
+    hspec
   main-is:
     Main.hs
   ghc-options:
@@ -141,7 +141,7 @@ test-suite htf
     hasql-backend,
     hasql == 0.4.*,
     -- testing:
-    HTF == 0.12.*,
+    hspec == 2.1.*,
     quickcheck-instances == 0.3.*,
     QuickCheck == 2.7.*,
     -- concurrency:
