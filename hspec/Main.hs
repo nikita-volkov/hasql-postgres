@@ -118,15 +118,16 @@ main =
     describe "Mapping of" $ do
 
       describe "Enum" $ do
-        it "casting" $ do
+
+        it "casts text" $ do
           session1 $ do
             H.tx Nothing $ do
               H.unit [H.q| DROP TYPE IF EXISTS mood |]
               H.unit [H.q| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
-            liftIO . shouldBe (Just (Identity ("ok" :: Text))) =<< do 
+            liftIO . (flip shouldBe) (Just (Identity ("ok" :: Text))) =<< do 
               H.tx Nothing $ H.single $ [H.q|SELECT (? :: mood)|] ("ok" :: Text)
               
-        it "table" $ do
+        it "casts text to a table column" $ do
           session1 $ do
             H.tx Nothing $ do
               H.unit [H.q| DROP TABLE IF EXISTS a |]
@@ -138,7 +139,7 @@ main =
               H.unit [H.q| INSERT INTO a (mood) VALUES ('ok') |]
               H.unit [H.q| INSERT INTO a (mood) VALUES ('ok') |]
               H.unit [H.q| INSERT INTO a (mood) VALUES ('happy') |]
-            liftIO . shouldBe ([1, 2] :: [Int]) . fmap runIdentity =<< do 
+            liftIO . (flip shouldBe) ([1, 2] :: [Int]) . fmap runIdentity =<< do 
               H.tx Nothing $ H.list $ [H.q|SELECT id FROM a WHERE mood = ?|] ("ok" :: Text)
 
       describe "Maybe" $ do
