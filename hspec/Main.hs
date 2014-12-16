@@ -50,14 +50,14 @@ main =
 
       it "sameStatementUsedOnDifferentTypes" $ do
         session1 $ do
-          liftIO . shouldBe (Just (Identity ("abc" :: Text))) =<< do 
+          liftIO . (flip shouldBe) (Just (Identity ("abc" :: Text))) =<< do 
             H.tx Nothing $ H.single $ [H.q|SELECT ?|] ("abc" :: Text)
-          liftIO . shouldBe (Just (Identity True)) =<< do 
+          liftIO . (flip shouldBe) (Just (Identity True)) =<< do 
             H.tx Nothing $ H.single $ [H.q|SELECT ?|] True
 
       it "rendering" $ do
         let rows = [("A", 34525), ("B", 324987)] :: [(Text, Int)]
-        shouldBe (Just $ head rows) =<< do 
+        (flip shouldBe) (Just $ head rows) =<< do 
           session1 $ do
             H.tx Nothing $ do
               H.unit [H.q|DROP TABLE IF EXISTS a|]
@@ -71,7 +71,7 @@ main =
               H.single $ [H.q|SELECT name, birthday FROM a WHERE id = ? |] (1 :: Int)
 
       it "countEffects" $ do
-        shouldBe 100 =<< do 
+        (flip shouldBe) 100 =<< do 
           session1 $ do
             tx Nothing $ do
               unit [q|DROP TABLE IF EXISTS a|]
@@ -81,7 +81,7 @@ main =
               count [q|DELETE FROM a|]
 
       it "autoIncrement" $ do
-        shouldBe (Just (1 :: Word64), Just (2 :: Word64)) =<< do
+        (flip shouldBe) (Just (1 :: Word64), Just (2 :: Word64)) =<< do
           session1 $ tx Nothing $ do
             unit [q|DROP TABLE IF EXISTS a|]
             unit [q|CREATE TABLE a (id SERIAL NOT NULL, v INT8, PRIMARY KEY (id))|]
@@ -95,7 +95,7 @@ main =
             tx (Just (ReadCommitted, False)) $ do
               ListT.toList $ fmap runIdentity $ stream $ 
                 [q|select oid from pg_type ORDER BY oid|]
-          liftIO $ shouldBe (sort r) r
+          liftIO $ (flip shouldBe) (sort r) r
 
       it "cursor" $ do
         session1 $ do
@@ -106,14 +106,14 @@ main =
           r' :: [(Word, Text)] <-
             tx (Just (ReadCommitted, False)) $ do
               list $ [q|select oid, typname from pg_type|]
-          liftIO $ shouldBe r' r
+          liftIO $ (flip shouldBe) r' r
 
       it "select" $ do
         session1 $ do
           r :: [(Word, Text)] <-
             tx Nothing $ do
               list $ [q|select oid, typname from pg_type|]
-          liftIO $ shouldBe True $ not $ null r
+          liftIO $ (flip shouldBe) True $ not $ null r
 
     describe "Mapping of" $ do
 
@@ -152,7 +152,7 @@ main =
                 [Just 'a', Just 'b'],
                 [Nothing, Just 'c']
               ]
-          shouldBe (Just (Identity v1)) =<< do
+          (flip shouldBe) (Just (Identity v1)) =<< do
             session1 $ tx Nothing $ do
               unit $ [q|DROP TABLE IF EXISTS a|]
               unit $ [q|CREATE TABLE a ("v" char[][])|]
@@ -219,7 +219,7 @@ validMappingSession ::
   Backend.Mapping Postgres a => Typeable a => Show a => Eq a => 
   a -> Session Postgres s IO ()
 validMappingSession v =
-  selectSelf v >>= liftIO . shouldBe (Just v)
+  selectSelf v >>= liftIO . (flip shouldBe) (Just v)
 
 -- ** Property
 -------------------------
