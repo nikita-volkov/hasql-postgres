@@ -88,7 +88,7 @@ checkStatus g r =
 
 unit :: PQ.Result -> M ()
 unit r =
-  checkStatus (\case PQ.CommandOk -> True; _ -> False) r
+  checkStatus (\case PQ.CommandOk -> True; PQ.TuplesOk -> True; _ -> False) r
 
 count :: PQ.Result -> M Word64
 count r =

@@ -7,6 +7,10 @@ import qualified Data.ByteString.Lazy.Builder.ASCII as BB
 import qualified Hasql.Postgres.TemplateConverter.Parser as Parser
 
 
+-- |
+-- 
+-- >>> convert "asdf ? \"'\\\"?'\" d 2??"
+-- Right "asdf $1 \"'\\\"?'\" d 2$2$3"
 convert :: ByteString -> Either Text ByteString
 convert t =
   do
