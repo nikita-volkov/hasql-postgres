@@ -34,7 +34,7 @@ type Scientific = Scientific.Scientific
 main = 
   hspec $ do
 
-    describe "Features" $ do
+    describe "Feature" $ do
       
       it "wrongPort" $ do
         let 
@@ -115,7 +115,7 @@ main =
               list $ [q|select oid, typname from pg_type|]
           liftIO $ shouldBe True $ not $ null r
 
-    describe "Mapping" $ do
+    describe "Mapping of" $ do
 
       describe "Maybe" $ do
         it "" $ do
