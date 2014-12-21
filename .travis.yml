@@ -50,6 +50,7 @@ install:
         "--constraint=time==1.4.*"
         "--constraint=list-t==0.2.*"
         "--constraint=monad-control==0.3.*"
+        "--constraint=hasql==0.4.*"
       );
     fi;
   # Install the "haskell-src-exts" implicit dependency

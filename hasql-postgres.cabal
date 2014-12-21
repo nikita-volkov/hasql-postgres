@@ -139,7 +139,7 @@ test-suite hspec
   build-depends:
     hasql-postgres,
     hasql-backend,
-    hasql == 0.4.*,
+    hasql >= 0.4 && < 0.6,
     -- testing:
     hspec == 2.1.*,
     quickcheck-instances == 0.3.*,
@@ -184,7 +184,7 @@ benchmark competition
     postgresql-simple == 0.4.*,
     hasql-postgres,
     hasql-backend,
-    hasql == 0.4.*,
+    hasql >= 0.4 && < 0.6,
     -- random:
     QuickCheck == 2.7.*,
     quickcheck-instances == 0.3.*,
