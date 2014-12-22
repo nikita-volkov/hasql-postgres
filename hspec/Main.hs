@@ -7,6 +7,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Instances
 import Hasql
 import Hasql.Postgres (Postgres(..))
+import PostgreSQLBinary.Types (PGEnum(..))
 import Data.Time
 import qualified Data.Text
 import qualified Data.Text.Lazy
@@ -136,11 +137,11 @@ main =
               H.unit [H.q| CREATE TABLE a (id SERIAL NOT NULL, 
                                            mood mood NOT NULL,
                                            PRIMARY KEY (id)) |]
-              H.unit [H.q| INSERT INTO a (mood) VALUES ('ok') |]
-              H.unit [H.q| INSERT INTO a (mood) VALUES ('ok') |]
-              H.unit [H.q| INSERT INTO a (mood) VALUES ('happy') |]
+              H.unit $ [H.q| INSERT INTO a (mood) VALUES (?) |] (PGEnum "ok")
+              H.unit $ [H.q| INSERT INTO a (mood) VALUES (?) |] (PGEnum "ok")
+              H.unit $ [H.q| INSERT INTO a (mood) VALUES (?) |] (PGEnum "happy")
             liftIO . (flip shouldBe) ([1, 2] :: [Int]) . fmap runIdentity =<< do 
-              H.tx Nothing $ H.list $ [H.q|SELECT id FROM a WHERE mood = ?|] ("ok" :: Text)
+              H.tx Nothing $ H.list $ [H.q|SELECT id FROM a WHERE mood = ?|] (PGEnum "ok")
 
       describe "Maybe" $ do
         it "" $ do
