@@ -141,7 +141,6 @@ test-suite hspec
   build-depends:
     hasql-postgres,
     hasql-backend,
-    postgresql-binary,
     hasql >= 0.4 && < 0.6,
     -- testing:
     hspec == 2.1.*,

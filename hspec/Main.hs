@@ -7,7 +7,6 @@ import Test.QuickCheck
 import Test.QuickCheck.Instances
 import Hasql
 import Hasql.Postgres (Postgres(..))
-import PostgreSQLBinary.Types (PGEnum(..))
 import Data.Time
 import qualified Data.Text
 import qualified Data.Text.Lazy
@@ -128,21 +127,6 @@ main =
             liftIO . (flip shouldBe) (Just (Identity ("ok" :: Text))) =<< do 
               H.tx Nothing $ H.single $ [H.q|SELECT (? :: mood)|] ("ok" :: Text)
               
-        it "casts text to a table column" $ do
-          session1 $ do
-            H.tx Nothing $ do
-              H.unit [H.q| DROP TABLE IF EXISTS a |]
-              H.unit [H.q| DROP TYPE IF EXISTS mood |]
-              H.unit [H.q| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
-              H.unit [H.q| CREATE TABLE a (id SERIAL NOT NULL, 
-                                           mood mood NOT NULL,
-                                           PRIMARY KEY (id)) |]
-              H.unit $ [H.q| INSERT INTO a (mood) VALUES (?) |] (PGEnum "ok")
-              H.unit $ [H.q| INSERT INTO a (mood) VALUES (?) |] (PGEnum "ok")
-              H.unit $ [H.q| INSERT INTO a (mood) VALUES (?) |] (PGEnum "happy")
-            liftIO . (flip shouldBe) ([1, 2] :: [Int]) . fmap runIdentity =<< do 
-              H.tx Nothing $ H.list $ [H.q|SELECT id FROM a WHERE mood = ?|] (PGEnum "ok")
-
       describe "Maybe" $ do
         it "" $ do
           session1 $ do

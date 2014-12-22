@@ -36,7 +36,6 @@ circle          = mkPTI 718  (Just 719)
 cstring         = mkPTI 2275 (Just 1263)
 date            = mkPTI 1082 (Just 1182)
 daterange       = mkPTI 3912 (Just 3913)
-enum            = mkPTI 0 Nothing
 float4          = mkPTI 700  (Just 1021)
 float8          = mkPTI 701  (Just 1022)
 gtsvector       = mkPTI 3642 (Just 3644)
