@@ -14,6 +14,13 @@ import qualified PostgreSQLBinary.Decoder as Decoder
 
 
 -- |
+-- Used to create a query parameter out of raw bytes and let Postgres
+-- attempt to coerce it to the proper column type.
+newtype Unknown = 
+  Unknown ByteString
+
+
+-- |
 -- Server settings.
 -- 
 -- * @integer_datetimes@
@@ -263,6 +270,12 @@ let
         [|PTI.uuid|]
         [|const $ Encoder.uuid|]
         [|const $ Decoder.uuid|]
+      ,
+      (,,,)
+        [t|Unknown|]
+        [|PTI.unknown|]
+        [|const $ \(Unknown x) -> x|]
+        [|const $ Right . Unknown|]
     ]
   in
     fmap concat $ forM settings $ \(t, pti, encoder, decoder) ->
