@@ -145,13 +145,6 @@ mapExecutionError =
 -------------------------
 
 
--- |
--- Used to create a query parameter out of raw bytes and let Postgres
--- attempt to coerce it to the proper column type.
-newtype Unknown = 
-  Unknown ByteString
-
-
 {-# INLINE renderValueUsingMapping #-}
 renderValueUsingMapping :: Mapping.Mapping a => a -> Backend.StatementArgument Postgres
 renderValueUsingMapping x = 
@@ -163,15 +156,6 @@ renderValueUsingMapping x =
 parseResultUsingMapping :: Mapping.Mapping a => Backend.Result Postgres -> Either Text a
 parseResultUsingMapping (Result e x) = 
   Mapping.decode e x
-
-
--- |
--- Maps to @unknown@, which allows Postgres to try coercing the value.
-instance Backend.Mapping Postgres Unknown where
-  renderValue (Unknown x) = 
-    StatementArgument (PTI.oidPQ (PTI.ptiOID (PTI.unknown))) (const $ Just x)
-  parseResult (Result _ x) = 
-    maybe (Left "Decoding a NULL to Unknown") (Right . Unknown) x
 
 -- | 
 -- Maps to the same type as the underlying value, 
@@ -403,3 +387,30 @@ instance Backend.Mapping Postgres Bool where
 instance Backend.Mapping Postgres UUID where
   renderValue = renderValueUsingMapping
   parseResult = parseResultUsingMapping
+
+
+-- ** Custom types
+-------------------------
+
+-- |
+-- A wrapper around a 'ByteString',
+-- which identifies the value with the PostgreSQL's \"unknown\" type,
+-- thus leaving the choice of the type to Postgres.
+-- The bytestring needs to be encoded according to the Postgres binary format
+-- of the type it expects.
+-- 
+-- Essentially this is a low-level hook into the phases of encoding and decoding
+-- of values with custom codecs.
+-- <http://hackage.haskell.org/package/postgresql-binary The "postgresql-binary" library> 
+-- is your toolchain when dealing with this type.
+newtype Unknown = 
+  Unknown ByteString
+
+-- |
+-- Maps to @unknown@.
+instance Backend.Mapping Postgres Unknown where
+  renderValue (Unknown x) = 
+    StatementArgument (PTI.oidPQ (PTI.ptiOID (PTI.unknown))) (const $ Just x)
+  parseResult (Result _ x) = 
+    maybe (Left "Decoding a NULL to Unknown") (Right . Unknown) x
+
