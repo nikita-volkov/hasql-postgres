@@ -128,6 +128,21 @@ main =
 
       describe "Unknown" $ do
 
+        it "encodes to enum" $ do
+          session1 $ do
+            H.tx Nothing $ do
+              H.unit [H.q| DROP TABLE IF EXISTS a |]
+              H.unit [H.q| DROP TYPE IF EXISTS mood |]
+              H.unit [H.q| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
+              H.unit [H.q| CREATE TABLE a (id SERIAL NOT NULL, 
+                                           mood mood NOT NULL,
+                                           PRIMARY KEY (id)) |]
+              H.unit $ [H.q| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "ok")
+              H.unit $ [H.q| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "ok")
+              H.unit $ [H.q| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "happy")
+            liftIO . (flip shouldBe) ([1, 2] :: [Int]) . fmap runIdentity =<< do 
+              H.tx Nothing $ H.list $ [H.q|SELECT id FROM a WHERE mood = ?|] (HP.Unknown "ok")
+
         it "encodes Int64 into \"int8\" using a \"postgresql-binary\" encoder" $ do
           session1 $ tx Nothing $ unit $
             [q| SELECT (? :: int8) |] 
