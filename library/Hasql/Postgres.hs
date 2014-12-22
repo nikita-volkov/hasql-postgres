@@ -15,6 +15,7 @@ module Hasql.Postgres
 (
   Postgres(..),
   Connector.Settings(..),
+  Unknown(..)
 )
 where
 
@@ -386,4 +387,30 @@ instance Backend.Mapping Postgres Bool where
 instance Backend.Mapping Postgres UUID where
   renderValue = renderValueUsingMapping
   parseResult = parseResultUsingMapping
+
+
+-- ** Custom types
+-------------------------
+
+-- |
+-- A wrapper around a 'ByteString',
+-- which identifies the value with the PostgreSQL's \"unknown\" type,
+-- thus leaving the choice of the type to Postgres.
+-- The bytestring needs to be encoded according to the Postgres binary format
+-- of the type it expects.
+-- 
+-- Essentially this is a low-level hook into the phases of encoding and decoding
+-- of values with custom codecs.
+-- <http://hackage.haskell.org/package/postgresql-binary The "postgresql-binary" library> 
+-- is your toolchain when dealing with this type.
+newtype Unknown = 
+  Unknown ByteString
+
+-- |
+-- Maps to @unknown@.
+instance Backend.Mapping Postgres Unknown where
+  renderValue (Unknown x) = 
+    StatementArgument (PTI.oidPQ (PTI.ptiOID (PTI.unknown))) (const $ Just x)
+  parseResult (Result _ x) = 
+    maybe (Left "Decoding a NULL to Unknown") (Right . Unknown) x
 
