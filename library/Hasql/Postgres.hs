@@ -19,6 +19,7 @@ module Hasql.Postgres
 where
 
 import Hasql.Postgres.Prelude
+import PostgreSQLBinary.Types (PGEnum(..))
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Hasql.Backend as Backend
 import qualified Hasql.Postgres.Connector as Connector
@@ -363,6 +364,11 @@ instance Backend.Mapping Postgres LazyText where
   renderValue = renderValueUsingMapping
   parseResult = parseResultUsingMapping
 
+-- |
+-- Maps to @enum@.
+instance Backend.Mapping Postgres PGEnum where
+  renderValue = renderValueUsingMapping
+  parseResult = parseResultUsingMapping
 -- |
 -- Maps to @bytea@.
 instance Backend.Mapping Postgres ByteString where
