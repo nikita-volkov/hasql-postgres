@@ -3,6 +3,8 @@
 module Hasql.Postgres.Mapping where
 
 import Hasql.Postgres.Prelude hiding (bool)
+import PostgreSQLBinary.Types (PGEnum(..))
+
 import qualified Language.Haskell.TH as TH
 import qualified Hasql.Postgres.PTI as PTI
 import qualified Data.Vector as V
@@ -239,6 +241,12 @@ let
         [|PTI.text|]
         [|const $ Encoder.text . Right|]
         [|const $ fmap TL.fromStrict . Decoder.text|]
+      ,
+      (,,,)
+        [t|PGEnum|]
+        [|PTI.enum|]
+        [|const $ Encoder.text . Left . getEnumText|]
+        [|const $ fmap PGEnum . Decoder.text|]
       ,
       (,,,)
         [t|ByteString|]
