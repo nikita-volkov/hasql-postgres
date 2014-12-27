@@ -87,12 +87,11 @@ main =
             return (id1, id2)
 
       it "cursorResultsOrder" $ do
-        Right r <-
+        flip shouldSatisfy (\case Right r -> (sort r :: [Word]) == r; _ -> False) =<< do
           session1 $ do
             H.tx (Just (H.ReadCommitted, Nothing)) $ do
               ListT.toList . fmap runIdentity =<< do 
                 H.streamTx $ [H.stmt|select oid from pg_type ORDER BY oid|]
-        (flip shouldBe) (sort r :: [Word]) r
 
       it "cursor" $ do
         flip shouldSatisfy isRight =<< do
