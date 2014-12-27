@@ -2,12 +2,13 @@ import BasePrelude
 import MTLPrelude
 import Control.DeepSeq
 import Control.Monad.Trans.Control
+import Control.Monad.Trans.Either
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Time
 import CriterionPlus
 import qualified Hasql as H
-import qualified Hasql.Postgres as H
+import qualified Hasql.Postgres as HP
 import qualified ListT
 import qualified Database.PostgreSQL.Simple as P
 import qualified Database.PostgreSQL.Simple.SqlQQ as P
@@ -34,19 +35,19 @@ main =
 
       subject "hasql" $ do
         pause
-        H.session (H.ParamSettings host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
-          H.tx Nothing $ do
-            H.unit [H.q|DROP TABLE IF EXISTS a|]
-            H.unit [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
+        hSession (HP.ParamSettings host port user password db) (fromJust $ H.poolSettings 1 30) $ do
+          hTx Nothing $ do
+            H.unitTx [H.q|DROP TABLE IF EXISTS a|]
+            H.unitTx [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
                                         name VARCHAR NOT NULL, 
                                         birthday DATE,
                                         PRIMARY KEY (id))|]
             forM_ rows $ \(name, birthday) -> do
-              H.unit $ [H.q|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
+              H.unitTx $ [H.q|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
           lift $ continue
           replicateM_ 100 $ do
-            r <- H.tx Nothing $ do
-              H.list $ [H.q|SELECT * FROM a|] :: H.Tx H.Postgres s [(Int, Text, Day)]
+            r <- hTx Nothing $ do
+              fmap toList $ H.vectorTx $ [H.q|SELECT * FROM a|] :: H.Tx HP.Postgres s [(Int, Text, Day)]
             deepseq r $ return ()
           lift $ pause
 
@@ -110,22 +111,22 @@ main =
 
       subject "hasql" $ do
         pause
-        H.session (H.ParamSettings host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
-          H.tx Nothing $ do
-            H.unit [H.q|DROP TABLE IF EXISTS a|]
-            H.unit [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
+        hSession (HP.ParamSettings host port user password db) (fromJust $ H.poolSettings 1 30) $ do
+          hTx Nothing $ do
+            H.unitTx [H.q|DROP TABLE IF EXISTS a|]
+            H.unitTx [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
                                         name VARCHAR NOT NULL, 
                                         birthday DATE,
                                         PRIMARY KEY (id))|]
           lift $ continue
           replicateM_ 1000 $ do
-            H.tx Nothing $ do
-              H.list $ 
+            hTx Nothing $ do
+              fmap toList $ H.vectorTx $ 
                 [H.q|SELECT * FROM a WHERE id > ? AND id < ? AND birthday != ?|] 
                   (1000 :: Int)
                   (0 :: Int) 
                   (day)
-                :: H.Tx H.Postgres s [(Int, Text, Day)]
+                :: H.Tx HP.Postgres s [(Int, Text, Day)]
           lift $ pause
 
       subject "postgresql-simple" $ do
@@ -183,22 +184,22 @@ main =
 
       subject "hasql" $ do
         pause
-        H.session (H.ParamSettings host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
-          H.tx Nothing $ do
-            H.unit [H.q|DROP TABLE IF EXISTS a|]
-            H.unit [H.q|CREATE TABLE a (id SERIAL NOT NULL, balance INT8, PRIMARY KEY (id))|]
+        hSession (HP.ParamSettings host port user password db) (fromJust $ H.poolSettings 1 30) $ do
+          hTx Nothing $ do
+            H.unitTx [H.q|DROP TABLE IF EXISTS a|]
+            H.unitTx [H.q|CREATE TABLE a (id SERIAL NOT NULL, balance INT8, PRIMARY KEY (id))|]
             replicateM_ users $ do
-              H.unit [H.q|INSERT INTO a (balance) VALUES (0)|]
+              H.unitTx [H.q|INSERT INTO a (balance) VALUES (0)|]
           lift $ continue
           forM_ transfers $ \(id1, id2) -> do
-            H.tx (Just (H.Serializable, True)) $ do
+            hTx (Just (H.Serializable, Just True)) $ do
               runMaybeT $ do
                 do
-                  Identity balance <- MaybeT $ H.single $ [H.q|SELECT balance FROM a WHERE id=?|] id1
-                  lift $ H.unit $ [H.q|UPDATE a SET balance=? WHERE id=?|] (balance - amount) id1
+                  Identity balance <- MaybeT $ H.maybeTx $ [H.q|SELECT balance FROM a WHERE id=?|] id1
+                  lift $ H.unitTx $ [H.q|UPDATE a SET balance=? WHERE id=?|] (balance - amount) id1
                 do
-                  Identity balance <- MaybeT $ H.single $ [H.q|SELECT balance FROM a WHERE id=?|] id2
-                  lift $ H.unit $ [H.q|UPDATE a SET balance=? WHERE id=?|] (balance + amount) id2
+                  Identity balance <- MaybeT $ H.maybeTx $ [H.q|SELECT balance FROM a WHERE id=?|] id2
+                  lift $ H.unitTx $ [H.q|UPDATE a SET balance=? WHERE id=?|] (balance + amount) id2
           lift $ pause
 
       subject "postgresql-simple" $ do
@@ -248,6 +249,31 @@ main =
         liftIO $ C.disconnect c
 
 
+-- * Hasql utils
+-------------------------
+
+newtype HSession m r =
+  HSession (ReaderT (H.Pool HP.Postgres) (EitherT (H.TxError HP.Postgres) m) r)
+  deriving (Functor, Applicative, Monad, MonadIO)
+
+instance MonadTrans HSession where
+  lift = HSession . lift . lift
+
+hTx :: MonadIO m => H.TxMode -> (forall s. H.Tx HP.Postgres s a) -> HSession m a
+hTx mode m =
+  HSession $ ReaderT $ \p -> EitherT $ liftIO $ H.tx p mode m
+
+hSession :: MonadBaseControl IO m => HP.Settings -> H.PoolSettings -> HSession m r -> m (Either (H.TxError HP.Postgres) r)
+hSession s1 s2 (HSession m) =
+  control $ \unlift -> do
+    p <- H.acquirePool s1 s2
+    r <- unlift $ runEitherT $ runReaderT m p
+    H.releasePool p
+    return r
+
+
+-- * DB data
+-------------------------
 
 host = "localhost"
 port = 5432

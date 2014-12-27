@@ -3,12 +3,10 @@ module Hasql.Postgres.Session.ResultProcessing where
 import Hasql.Postgres.Prelude
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Hasql.Postgres.ErrorCode as ErrorCode
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import qualified Data.ByteString as B
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MVector
-import qualified ListT
 
 
 newtype M r =
@@ -16,9 +14,23 @@ newtype M r =
   deriving (Functor, Applicative, Monad, MonadIO)
 
 data Error =
-  UnexpectedResult Text |
-  ErroneousResult Text |
+  -- |
+  -- Received no response from the database.
+  NoResult !(Maybe ByteString) |
+  -- | 
+  -- An error reported by the DB. Code, message, details, hint.
+  -- 
+  -- * The SQLSTATE code for the error. The SQLSTATE code identifies the type of error that has occurred; it can be used by front-end applications to perform specific operations (such as error handling) in response to a particular database error. For a list of the possible SQLSTATE codes, see Appendix A. This field is not localizable, and is always present.
+  -- * The primary human-readable error message (typically one line). Always present.
+  -- * Detail: an optional secondary error message carrying more detail about the problem. Might run to multiple lines.
+  -- * Hint: an optional suggestion what to do about the problem. This is intended to differ from detail in that it offers advice (potentially inappropriate) rather than hard facts. Might run to multiple lines.
+  ErroneousResult !ByteString !ByteString !(Maybe ByteString) !(Maybe ByteString) |
+  -- |
+  -- The database returned an unexpected result.
+  -- Indicates an improper statement or a schema mismatch.
+  UnexpectedResult !Text |
   TransactionConflict
+  deriving (Show)
 
 run :: PQ.Connection -> M r -> IO (Either Error r)
 run e (M m) =
@@ -28,12 +40,7 @@ just :: Maybe PQ.Result -> M PQ.Result
 just =
   ($ return) $ maybe $ M $ do
     m <- lift $ ask >>= liftIO . PQ.errorMessage
-    left $ ErroneousResult $ case m of
-      Nothing -> 
-        "Sending a command to the server failed"
-      Just m ->
-        "Sending a command to the server failed due to: " <> 
-        TE.decodeLatin1 m
+    left $ NoResult $ m
 
 checkStatus :: (PQ.ExecStatus -> Bool) -> PQ.Result -> M ()
 checkStatus g r =
@@ -41,50 +48,27 @@ checkStatus g r =
     s <- liftIO $ PQ.resultStatus r
     unless (g s) $ do
       case s of
-        PQ.BadResponse   -> failWithErroneousResult "Bad response"
-        PQ.NonfatalError -> failWithErroneousResult "Non-fatal error"
-        PQ.FatalError    -> failWithErroneousResult "Fatal error"
+        PQ.BadResponse   -> failWithErroneousResult
+        PQ.NonfatalError -> failWithErroneousResult
+        PQ.FatalError    -> failWithErroneousResult
         _ -> M $ left $ UnexpectedResult $ "Unexpected result status: " <> (fromString $ show s)
   where
-    failWithErroneousResult status =
+    failWithErroneousResult =
       do
-        code <- liftIO $ PQ.resultErrorField r PQ.DiagSqlstate
-        let transactionConflict =
-              case code of
-                Just x -> 
-                  elem x $
-                  [
-                    ErrorCode.transaction_rollback,
-                    ErrorCode.transaction_integrity_constraint_violation,
-                    ErrorCode.serialization_failure,
-                    ErrorCode.statement_completion_unknown,
-                    ErrorCode.deadlock_detected
-                  ]
-                Nothing ->
-                  False
-            in when transactionConflict $ M $ left $ TransactionConflict
-        message <- liftIO $ PQ.resultErrorField r PQ.DiagMessagePrimary
-        detail <- liftIO $ PQ.resultErrorField r PQ.DiagMessageDetail
-        hint <- liftIO $ PQ.resultErrorField r PQ.DiagMessageHint
-        M $ left $ ErroneousResult $ erroneousResultMessage status code message detail hint
-    erroneousResultMessage status code message details hint =
-      formatFields fields
-      where
-        formatFields = 
-          formatList . map formatField . catMaybes
-          where
-            formatList items =
-              T.intercalate "; " items <> "."
-            formatField (n, v) =
-              n <> ": \"" <> v <> "\""
-        fields =
-          [
-            Just ("Status", fromString $ show status),
-            fmap (("Code",) . TE.decodeLatin1) $ code,
-            fmap (("Message",) . TE.decodeLatin1) $ message,
-            fmap (("Details",) . TE.decodeLatin1) $ details,
-            fmap (("Hint",) . TE.decodeLatin1) $ hint
-          ]
+        code <- 
+          fmap (fromMaybe ($bug "No code")) $
+          liftIO $ PQ.resultErrorField r PQ.DiagSqlstate
+        let transactionConflict = code == ErrorCode.serialization_failure
+        when transactionConflict $ M $ left $ TransactionConflict
+        message <- 
+          fmap (fromMaybe ($bug "No message")) $
+          liftIO $ PQ.resultErrorField r PQ.DiagMessagePrimary
+        detail <- 
+          liftIO $ PQ.resultErrorField r PQ.DiagMessageDetail
+        hint <- 
+          liftIO $ PQ.resultErrorField r PQ.DiagMessageHint
+        M $ left $ ErroneousResult code message detail hint
+
 
 unit :: PQ.Result -> M ()
 unit r =
@@ -93,9 +77,10 @@ unit r =
 count :: PQ.Result -> M Word64
 count r =
   do  checkStatus (\case PQ.CommandOk -> True; _ -> False) r
-      (liftIO $ PQ.cmdTuples r) >>= 
-        maybe (M $ left $ UnexpectedResult $ "No number of affected rows")
-              (parseWord64)
+      r' <- liftIO $ PQ.cmdTuples r
+      maybe (M $ left $ UnexpectedResult $ "No number of affected rows")
+            (parseWord64)
+            (mfilter (not . B.null) r')
 
 parseWord64 :: ByteString -> M Word64
 parseWord64 b =
@@ -110,13 +95,13 @@ vector r =
     liftIO $ do
       nr <- PQ.ntuples r
       nc <- PQ.nfields r
-      mvx <- MVector.new (rowInt nr)
+      mvx <- MVector.unsafeNew (rowInt nr)
       forM_ [0..pred nr] $ \ir -> do
-        mvy <- MVector.new (colInt nc)
+        mvy <- MVector.unsafeNew (colInt nc)
         forM_ [0..pred nc] $ \ic -> do
-          MVector.write mvy (colInt ic) =<< PQ.getvalue r ir ic
+          MVector.unsafeWrite mvy (colInt ic) =<< PQ.getvalue r ir ic
         vy <- Vector.unsafeFreeze mvy
-        MVector.write mvx (rowInt ir) vy
+        MVector.unsafeWrite mvx (rowInt ir) vy
       Vector.unsafeFreeze mvx
 
 {-# INLINE colInt #-}

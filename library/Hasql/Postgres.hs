@@ -7,135 +7,232 @@
 -- encoding which in the type system would seriously burden the API,
 -- so it was decided to make it the user's responsibility 
 -- to make sure that certain conditions are satisfied during the runtime.
--- Particularly this concerns the 'Backend.Mapping' instances of 
+-- Particularly this concerns the 'Bknd.CxValue' instances of 
 -- @Maybe@, @[]@ and @Vector@.
 -- For details consult the docs on those instances.
 -- 
 module Hasql.Postgres 
 (
-  Postgres(..),
+  Postgres,
   Connector.Settings(..),
-  Unknown(..)
+  CxError(..),
+  TxError(..),
+  Unknown(..),
 )
 where
 
 import Hasql.Postgres.Prelude
 import qualified Database.PostgreSQL.LibPQ as PQ
-import qualified Hasql.Backend as Backend
+import qualified Hasql.Backend as Bknd
 import qualified Hasql.Postgres.Connector as Connector
 import qualified Hasql.Postgres.Statement as Statement
 import qualified Hasql.Postgres.PTI as PTI
 import qualified Hasql.Postgres.Mapping as Mapping
 import qualified Hasql.Postgres.Session.Transaction as Transaction
 import qualified Hasql.Postgres.Session.Execution as Execution
+import qualified Hasql.Postgres.Session.ResultProcessing as ResultProcessing
 import qualified Language.Haskell.TH as TH
-import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import qualified Data.Text.Encoding as Text
+import qualified Data.Vector as Vector
 import qualified ListT
 
 
 -- |
--- Just an alias to settings,
--- which is used as a more descriptive identifier type of the backend.
-type Postgres = 
-  Connector.Settings
+-- A connection to PostgreSQL.
+data Postgres = 
+  Postgres {
+    connection :: !PQ.Connection,
+    executionEnv :: !Execution.Env,
+    transactionEnv :: !Transaction.Env,
+    mappingEnv :: !Mapping.Environment
+  }
+
+data CxError =
+  -- | 
+  -- Impossible to connect. 
+  -- A clarification might be given in the attached byte string.
+  CantConnect (Maybe ByteString) |
+  -- | 
+  -- Server is running an unsupported version of Postgres.
+  -- The parameter is the version in such a format,
+  -- where a value @80105@ identifies a version @8.1.5@.
+  UnsupportedVersion Int
+  deriving (Show, Eq)
 
 
-instance Backend.Backend Postgres where
-  data StatementArgument Postgres = 
-    StatementArgument PQ.Oid (Mapping.Environment -> Maybe ByteString)
-  data Result Postgres = 
-    Result Mapping.Environment (Maybe ByteString)
-  data Connection Postgres = 
-    Connection {
-      connection :: !PQ.Connection,
-      executionEnv :: !Execution.Env,
-      transactionEnv :: !Transaction.Env,
-      mappingEnv :: !Mapping.Environment
-    }
-  connect settings =
-    do
-      r <- Connector.open settings
-      c <- either (\e -> throwIO $ Backend.CantConnect $ fromString $ show e) return r
-      ee <- Execution.newEnv c
-      Connection <$> pure c <*> pure ee <*> Transaction.newEnv ee <*> getIntegerDatetimes c
+instance Bknd.Cx Postgres where
+  type CxSettings Postgres =
+    Connector.Settings
+  type CxError Postgres =
+    CxError
+  acquireCx settings =
+    runEitherT $ do
+      c <- EitherT $ fmap (mapLeft connectorErrorMapping) $ Connector.open settings
+      lift $ do
+        e <- Execution.newEnv c
+        Postgres <$> pure c <*> pure e <*> Transaction.newEnv e <*> getIntegerDatetimes c
     where
       getIntegerDatetimes c =
-        fmap parseResult $ PQ.parameterStatus c "integer_datetimes"
+        fmap decodeValue $ PQ.parameterStatus c "integer_datetimes"
         where
-          parseResult = 
+          decodeValue = 
             \case
               Just "on" -> True
               _ -> False
-  disconnect c =
-    PQ.finish (connection c)
-  execute s = 
-    do  s' <- liftStatement s
-        liftExecution $ Execution.unitResult =<< Execution.statement s'
-  executeAndGetMatrix s =
-    do  s' <- liftStatement s
-        c <- id
-        (fmap . fmap . fmap . fmap) (Result (mappingEnv c)) $ liftExecution $ 
-          Execution.vectorResult =<< Execution.statement s'
-  executeAndStream s =
-    do  s' <- liftStatement s
-        c <- id
-        return $ return $ liftTransactionStream (Transaction.streamWithCursor s') c
-  executeAndCountEffects s =
-    do  s' <- liftStatement s
-        liftExecution $ Execution.countResult =<< Execution.statement s'
-  beginTransaction (isolation, write) = 
-    liftTransaction $ Transaction.beginTransaction (mapIsolation isolation, write)
-    where
-      mapIsolation =
+      connectorErrorMapping =
         \case
-          Backend.Serializable    -> Statement.Serializable
-          Backend.RepeatableReads -> Statement.RepeatableRead
-          Backend.ReadCommitted   -> Statement.ReadCommitted
-          Backend.ReadUncommitted -> Statement.ReadCommitted
-  finishTransaction commit =
-    liftTransaction $ Transaction.finishTransaction commit
+          Connector.BadStatus x -> CantConnect x
+          Connector.UnsupportedVersion x -> UnsupportedVersion x
+  releaseCx =
+    PQ.finish . connection
 
 
--- |
--- Just a convenience alias to a function on connection.
--- Useful since most of the 'Backend' API is made up of such functions.
-type M a =
-  Backend.Connection Postgres -> a
+-- * Transactions
+-------------------------
 
-liftExecution :: Execution.M a -> M (IO a)
+data TxError =
+  -- |
+  -- Received no response from the database.
+  NoResult !(Maybe ByteString) |
+  -- | 
+  -- An error reported by the DB. Code, message, details, hint.
+  -- 
+  -- * The SQLSTATE code for the error. The SQLSTATE code identifies the type of error that has occurred; it can be used by front-end applications to perform specific operations (such as error handling) in response to a particular database error. For a list of the possible SQLSTATE codes, see Appendix A. This field is not localizable, and is always present.
+  -- * The primary human-readable error message (typically one line). Always present.
+  -- * Detail: an optional secondary error message carrying more detail about the problem. Might run to multiple lines.
+  -- * Hint: an optional suggestion what to do about the problem. This is intended to differ from detail in that it offers advice (potentially inappropriate) rather than hard facts. Might run to multiple lines.
+  ErroneousResult !ByteString !ByteString !(Maybe ByteString) !(Maybe ByteString) |
+  -- |
+  -- The database returned an unexpected result.
+  -- Indicates an improper statement or a schema mismatch.
+  UnexpectedResult !Text |
+  -- |
+  -- An attempt to perform an action, 
+  -- which requires a transaction context, without one.
+  -- 
+  -- Currently it's only raised when trying to stream
+  -- without establishing a transaction.
+  NotInTransaction
+  deriving (Show, Eq)
+
+
+instance Bknd.CxTx Postgres where
+  type TxError Postgres =
+    TxError
+  runTx p mode =
+    runEitherT . runMaybeT . flip runReaderT p . inTransaction mode . interpretTx 
+
+
+type Interpreter a =
+  ReaderT Postgres (MaybeT (EitherT TxError IO)) a
+
+liftExecution :: Execution.M a -> Interpreter a
 liftExecution m =
-  \c -> Execution.run (executionEnv c) m >>= either (throwIO . mapExecutionError) return
+  do
+    r <- ReaderT $ \p -> liftIO $ Execution.run (executionEnv p) m
+    either throwResultProcessingError return r
 
-liftTransaction :: Transaction.M a -> M (IO a)
+liftTransaction :: Transaction.M a -> Interpreter a
 liftTransaction m =
-  \c -> Transaction.run (transactionEnv c) m >>= either (throwIO . mapError) return
+  do
+    r <- ReaderT $ \p -> liftIO $ Transaction.run (transactionEnv p) m
+    either throwTransactionError return r
   where
-    mapError =
+    throwTransactionError =
       \case
-        Transaction.NotInTransaction -> Backend.NotInTransaction
-        Transaction.ExecutionError e -> mapExecutionError e
+        Transaction.NotInTransaction -> lift $ lift $ left $ NotInTransaction
+        Transaction.ResultProcessingError a -> throwResultProcessingError a
 
-liftStatement :: Backend.Statement Postgres -> M Statement.Statement
-liftStatement (template, arguments, preparable) c =
-  (,,) template (map liftArgument arguments) preparable
-  where
-    liftArgument (StatementArgument o f) = 
-      (,) o ((,) <$> f (mappingEnv c) <*> pure PQ.Binary)
-
-liftTransactionStream :: Transaction.Stream -> M (Backend.Stream Postgres)
-liftTransactionStream s c =
-  (fmap . fmap) (Result (mappingEnv c)) $ hoist (flip liftTransaction c) s
-
-mapExecutionError :: Execution.Error -> Backend.Error
-mapExecutionError =
+throwResultProcessingError :: ResultProcessing.Error -> Interpreter a
+throwResultProcessingError =
   \case
-    Execution.UnexpectedResult m     -> Backend.UnexpectedResult m
-    Execution.ErroneousResult m      -> Backend.ErroneousResult m
-    Execution.UnparsableTemplate t m -> Backend.UnparsableTemplate $
-                                        "Message: " <> m <> "; " <>
-                                        "Template: " <> fromString (show t)
-    Execution.TransactionConflict    -> Backend.TransactionConflict
+    ResultProcessing.NoResult a -> lift $ lift $ left $ NoResult a
+    ResultProcessing.ErroneousResult a b c d -> lift $ lift $ left $ ErroneousResult a b c d
+    ResultProcessing.UnexpectedResult a -> lift $ lift $ left $ UnexpectedResult a
+    ResultProcessing.TransactionConflict -> lift $ mzero
+
+convertStatement :: Bknd.Stmt Postgres -> Interpreter Statement.Statement
+convertStatement s =
+  asks $ \p -> 
+    let
+      liftParam (StmtParam o f) = 
+        (,) o ((,) <$> f (mappingEnv p) <*> pure PQ.Binary)
+      in 
+        Statement.Statement
+          (Statement.UnicodeTemplate (Bknd.stmtTemplate s))
+          (toList $ fmap liftParam $ Bknd.stmtParams s)
+          (Bknd.stmtPreparable s)
+
+interpretTx :: Bknd.Tx Postgres a -> Interpreter a
+interpretTx =
+  iterTM $ \case
+    Bknd.UnitTx stmt next -> do
+      stmt' <- convertStatement stmt
+      liftExecution $ Execution.unitResult =<< Execution.statement stmt'
+      next
+    Bknd.CountTx stmt next -> do
+      stmt' <- convertStatement stmt
+      r <- liftExecution $ Execution.countResult =<< Execution.statement stmt'
+      next $ r
+    Bknd.MaybeTx stmt next -> do
+      stmt' <- convertStatement stmt
+      r <- liftExecution $ Execution.vectorResult =<< Execution.statement stmt'
+      r' <- 
+        asks $ \p ->
+          (fmap . fmap) (ResultValue (mappingEnv p)) $
+          fmap Vector.head $ mfilter (not . Vector.null) $ pure $ r
+      next r'
+    Bknd.VectorTx stmt next -> do
+      stmt' <- convertStatement stmt
+      r <- liftExecution $ Execution.vectorResult =<< Execution.statement stmt'
+      r' <- 
+        asks $ \p -> 
+          (fmap . fmap) (ResultValue (mappingEnv p)) $ r
+      next r'
+    Bknd.StreamTx stmt next -> do
+      stmt' <- convertStatement stmt
+      r <- liftTransaction $ Transaction.streamWithCursor stmt'
+      r' <- 
+        asks $ \p -> 
+          (fmap . fmap) (ResultValue (mappingEnv p)) $
+          hoist (lift . flip runReaderT p . liftTransaction) $
+          r
+      next r'
+
+inTransaction :: Bknd.TxMode -> Interpreter a -> Interpreter a
+inTransaction mode m =
+  do
+    liftTransaction $ beginTransaction
+    result <- ReaderT $ \p -> lift $ lift $ runEitherT $ runMaybeT $ flip runReaderT p $ m
+    case result of
+      Left e -> do
+        liftTransaction $ finishTransaction False
+        lift $ lift $ left $ e
+      Right Nothing -> do
+        liftTransaction $ finishTransaction False
+        mzero
+      Right (Just r) -> do
+        liftTransaction $ finishTransaction True
+        return r
+  where
+    (,) beginTransaction finishTransaction =
+      case mode of
+        Nothing -> 
+          (,) (return ()) 
+              (const (return ()))
+        Just (isolation, Nothing) -> 
+          (,) (Transaction.beginTransaction (convertIsolation isolation, False))
+              (Transaction.finishTransaction)
+        Just (isolation, Just commit) ->
+          (,) (Transaction.beginTransaction (convertIsolation isolation, True))
+              (\commit' -> Transaction.finishTransaction (commit && commit'))
+      where
+        convertIsolation =
+          \case
+            Bknd.Serializable    -> Statement.Serializable
+            Bknd.RepeatableReads -> Statement.RepeatableRead
+            Bknd.ReadCommitted   -> Statement.ReadCommitted
+            Bknd.ReadUncommitted -> Statement.ReadCommitted
 
 
 -- * Mappings
@@ -144,17 +241,23 @@ mapExecutionError =
 -- to be able to document them.
 -------------------------
 
+data instance Bknd.ResultValue Postgres =
+  ResultValue !Mapping.Environment !(Maybe ByteString)
 
-{-# INLINE renderValueUsingMapping #-}
-renderValueUsingMapping :: Mapping.Mapping a => a -> Backend.StatementArgument Postgres
-renderValueUsingMapping x = 
-  StatementArgument
+data instance Bknd.StmtParam Postgres =
+  StmtParam !PQ.Oid !(Mapping.Environment -> Maybe ByteString)
+
+
+{-# INLINE encodeValueUsingMapping #-}
+encodeValueUsingMapping :: Mapping.Mapping a => a -> Bknd.StmtParam Postgres
+encodeValueUsingMapping x = 
+  StmtParam
     (PTI.oidPQ $ Mapping.oid x)
     (flip Mapping.encode x)
 
-{-# INLINE parseResultUsingMapping #-}
-parseResultUsingMapping :: Mapping.Mapping a => Backend.Result Postgres -> Either Text a
-parseResultUsingMapping (Result e x) = 
+{-# INLINE decodeValueUsingMapping #-}
+decodeValueUsingMapping :: Mapping.Mapping a => Bknd.ResultValue Postgres -> Either Text a
+decodeValueUsingMapping (ResultValue e x) = 
   Mapping.decode e x
 
 -- | 
@@ -166,9 +269,9 @@ parseResultUsingMapping (Result e x) =
 -- Multilevel 'Maybe's are not supported.
 -- E.g., a value @Just Nothing@ of type @(Maybe (Maybe a))@ 
 -- will be encoded the same way as @Nothing@.
-instance Mapping.Mapping a => Backend.Mapping Postgres (Maybe a) where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Mapping.Mapping a => Bknd.CxValue Postgres (Maybe a) where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to Postgres arrays. 
@@ -204,108 +307,108 @@ instance Mapping.Mapping a => Backend.Mapping Postgres (Maybe a) where
 -- it will be mapped to an array of characters. 
 -- So if you want to map to a textual type use 'Text' instead.
 -- 
-instance (Mapping.Mapping a, Mapping.ArrayMapping a) => Backend.Mapping Postgres [a] where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance (Mapping.Mapping a, Mapping.ArrayMapping a) => Bknd.CxValue Postgres [a] where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to Postgres' arrays.
 -- 
 -- Same rules as for the list instance apply. 
 -- Consult its docs for details.
-instance (Mapping.Mapping a, Mapping.ArrayMapping a) => Backend.Mapping Postgres (Vector a) where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance (Mapping.Mapping a, Mapping.ArrayMapping a) => Bknd.CxValue Postgres (Vector a) where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @int8@.
-instance Backend.Mapping Postgres Int where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Int where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @int2@.
-instance Backend.Mapping Postgres Int8 where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Int8 where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @int2@.
-instance Backend.Mapping Postgres Int16 where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Int16 where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @int4@.
-instance Backend.Mapping Postgres Int32 where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Int32 where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @int8@.
-instance Backend.Mapping Postgres Int64 where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Int64 where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @int8@.
-instance Backend.Mapping Postgres Word where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Word where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @int2@.
-instance Backend.Mapping Postgres Word8 where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Word8 where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @int2@.
-instance Backend.Mapping Postgres Word16 where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Word16 where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @int4@.
-instance Backend.Mapping Postgres Word32 where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Word32 where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @int8@.
-instance Backend.Mapping Postgres Word64 where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Word64 where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @float4@.
-instance Backend.Mapping Postgres Float where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Float where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @float8@.
-instance Backend.Mapping Postgres Double where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Double where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @numeric@.
-instance Backend.Mapping Postgres Scientific where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Scientific where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @date@.
-instance Backend.Mapping Postgres Day where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Day where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @time@.
-instance Backend.Mapping Postgres TimeOfDay where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres TimeOfDay where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @timetz@.
@@ -315,15 +418,15 @@ instance Backend.Mapping Postgres TimeOfDay where
 -- However the \"time\" library does not contain any composite type,
 -- that fits the task, so we use a pair of 'TimeOfDay' and 'TimeZone'
 -- to represent a value on the Haskell's side.
-instance Backend.Mapping Postgres (TimeOfDay, TimeZone) where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres (TimeOfDay, TimeZone) where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @timestamp@.
-instance Backend.Mapping Postgres LocalTime where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres LocalTime where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @timestamptz@.
@@ -335,58 +438,58 @@ instance Backend.Mapping Postgres LocalTime where
 -- to the currently set timezone, when dealt with in the text format.
 -- However this library bypasses the silent conversions
 -- and communicates with Postgres using the UTC values directly.
-instance Backend.Mapping Postgres UTCTime where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres UTCTime where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @interval@.
-instance Backend.Mapping Postgres DiffTime where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres DiffTime where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @char@.
 -- Note that it supports UTF-8 values.
-instance Backend.Mapping Postgres Char where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Char where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @text@.
-instance Backend.Mapping Postgres Text where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Text where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @text@.
-instance Backend.Mapping Postgres LazyText where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres LazyText where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @bytea@.
-instance Backend.Mapping Postgres ByteString where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres ByteString where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @bytea@.
-instance Backend.Mapping Postgres LazyByteString where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres LazyByteString where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @bool@.
-instance Backend.Mapping Postgres Bool where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres Bool where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 -- |
 -- Maps to @uuid@.
-instance Backend.Mapping Postgres UUID where
-  renderValue = renderValueUsingMapping
-  parseResult = parseResultUsingMapping
+instance Bknd.CxValue Postgres UUID where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
 
 
 -- ** Custom types
@@ -408,9 +511,9 @@ newtype Unknown =
 
 -- |
 -- Maps to @unknown@.
-instance Backend.Mapping Postgres Unknown where
-  renderValue (Unknown x) = 
-    StatementArgument (PTI.oidPQ (PTI.ptiOID (PTI.unknown))) (const $ Just x)
-  parseResult (Result _ x) = 
+instance Bknd.CxValue Postgres Unknown where
+  encodeValue (Unknown x) = 
+    StmtParam (PTI.oidPQ (PTI.ptiOID (PTI.unknown))) (const $ Just x)
+  decodeValue (ResultValue _ x) = 
     maybe (Left "Decoding a NULL to Unknown") (Right . Unknown) x
 

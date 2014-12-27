@@ -12,18 +12,25 @@ where
 
 -- base-prelude
 -------------------------
-import BasePrelude as Exports hiding (assert, left, right)
+import BasePrelude as Exports hiding (assert, left, right, isLeft, isRight)
 
 -- transformers
 -------------------------
 import Control.Monad.IO.Class as Exports
 import Control.Monad.Trans.Class as Exports
+import Control.Monad.Trans.Maybe as Exports hiding (liftListen, liftPass)
 import Control.Monad.Trans.Reader as Exports hiding (liftCallCC, liftCatch)
-import Control.Monad.Trans.State.Strict as Exports hiding (liftCallCC, liftCatch)
+import Control.Monad.Trans.State.Strict as Exports hiding (liftCallCC, liftCatch, liftListen, liftPass)
 
 -- either
 -------------------------
 import Control.Monad.Trans.Either as Exports
+import Data.Either.Combinators as Exports
+
+-- free
+-------------------------
+import Control.Monad.Trans.Free as Exports
+import Control.Monad.Free.TH as Exports
 
 -- list-t
 -------------------------

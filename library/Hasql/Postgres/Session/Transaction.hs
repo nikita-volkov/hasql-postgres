@@ -9,6 +9,7 @@ import qualified Data.ByteString.Lazy.Builder.ASCII as BB
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector as Vector
 import qualified Hasql.Postgres.Session.Execution as Execution
+import qualified Hasql.Postgres.Session.ResultProcessing as ResultProcessing
 import qualified Hasql.Postgres.Statement as Statement
 
 
@@ -35,7 +36,7 @@ newtype M r =
 
 data Error =
   NotInTransaction |
-  ExecutionError Execution.Error
+  ResultProcessingError ResultProcessing.Error
 
 run :: Env -> M r -> IO (Either Error r)
 run e (M m) =
@@ -47,7 +48,7 @@ throwError e = M $ lift $ left $ e
 liftExecution :: Execution.M a -> M a
 liftExecution m =
   M $ ReaderT $ \e ->
-    EitherT $ fmap (either (Left . ExecutionError) Right) $ 
+    EitherT $ fmap (either (Left . ResultProcessingError) Right) $ 
     Execution.run (executionEnv e) m
 
 -- |
@@ -103,14 +104,15 @@ finishTransaction commit =
 type Stream =
   ListT M (Vector (Maybe ByteString))
 
-streamWithCursor :: Statement.Statement -> Stream
+streamWithCursor :: Statement.Statement -> M Stream
 streamWithCursor statement =
   do
-    cursor <- lift $ declareCursor statement
-    let loop = do
-          chunk <- lift $ fetchFromCursor cursor
-          guard $ not $ Vector.null chunk
-          Vector.foldl step mempty chunk <> loop
-        step z r = z <> pure r
-        in loop
+    cursor <- declareCursor statement
+    return $ 
+      let loop = do
+            chunk <- lift $ fetchFromCursor cursor
+            guard $ not $ Vector.null chunk
+            Vector.foldl step mempty chunk <> loop
+          step z r = z <> pure r
+          in loop
 

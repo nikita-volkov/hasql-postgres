@@ -1,3 +1,6 @@
+# 0.10.0 - Major overhaul
+* Transactions now are only retried in case of the "serialization_failure" (40001) error
+
 # 0.9.1
 * The Unknown type got implemented
 

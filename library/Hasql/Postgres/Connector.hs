@@ -22,6 +22,7 @@ data Settings =
 
 data Error =
   BadStatus (Maybe ByteString) |
+  -- | The server is running a too old a version of Postgres.
   UnsupportedVersion Int
   deriving (Show)
 

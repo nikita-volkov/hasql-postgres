@@ -1,4 +1,4 @@
-module Hasql.Postgres.TemplateConverter.Parser where
+module Hasql.Postgres.Statement.TemplateConverter.Parser where
 
 import Hasql.Postgres.Prelude
 import Data.Attoparsec.ByteString.Char8

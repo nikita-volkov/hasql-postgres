@@ -2,19 +2,16 @@ module Main where
 
 import BasePrelude hiding (assert)
 import MTLPrelude
+import Control.Monad.Trans.Either
 import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Instances
-import Hasql
-import Hasql.Postgres (Postgres(..))
 import Data.Time
 import qualified Data.Text
 import qualified Data.Text.Lazy
 import qualified Data.ByteString
 import qualified Data.ByteString.Lazy
 import qualified ListT
-import qualified SlaveThread
-import qualified Control.Concurrent.SSem as SSem
 import qualified Hasql.Backend as Backend
 import qualified Hasql as H
 import qualified Hasql.Postgres as HP
@@ -38,137 +35,144 @@ main =
       it "wrongPort" $ do
         let 
           backendSettings = HP.ParamSettings "localhost" 1 "postgres" "" "postgres"
-          poolSettings = fromJust $ sessionSettings 6 30
-          io =
-            H.session backendSettings poolSettings $ do
-              H.tx Nothing $ H.unit [H.q|DROP TABLE IF EXISTS a|]
-          in
-            shouldThrow io $ \case
-              H.CantConnect _ -> True
+          poolSettings = fromJust $ H.poolSettings 6 30
+          in do
+            r <- 
+              session backendSettings poolSettings $ do
+                tx Nothing $ H.unitTx [H.q|DROP TABLE IF EXISTS a|]
+            shouldSatisfy r $ \case
+              Left (H.BackendCxError _) -> True
               _ -> False
 
       it "sameStatementUsedOnDifferentTypes" $ do
-        session1 $ do
-          liftIO . (flip shouldBe) (Just (Identity ("abc" :: Text))) =<< do 
-            H.tx Nothing $ H.single $ [H.q|SELECT ?|] ("abc" :: Text)
-          liftIO . (flip shouldBe) (Just (Identity True)) =<< do 
-            H.tx Nothing $ H.single $ [H.q|SELECT ?|] True
+        flip shouldSatisfy isRight =<< do
+          session1 $ do
+            liftIO . (flip shouldBe) (Just (Identity ("abc" :: Text))) =<< do 
+              tx Nothing $ H.maybeTx $ [H.q|SELECT ?|] ("abc" :: Text)
+            liftIO . (flip shouldBe) (Just (Identity True)) =<< do 
+              tx Nothing $ H.maybeTx $ [H.q|SELECT ?|] True
 
       it "rendering" $ do
         let rows = [("A", 34525), ("B", 324987)] :: [(Text, Int)]
-        (flip shouldBe) (Just $ head rows) =<< do 
+        (flip shouldBe) (Right $ Just $ head rows) =<< do 
           session1 $ do
-            H.tx Nothing $ do
-              H.unit [H.q|DROP TABLE IF EXISTS a|]
-              H.unit [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
+            tx Nothing $ do
+              H.unitTx [H.q|DROP TABLE IF EXISTS a|]
+              H.unitTx [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
                                           name VARCHAR NOT NULL, 
                                           birthday INT8,
                                           PRIMARY KEY (id))|]
               forM_ rows $ \(name, birthday) -> do
-                H.unit $ [H.q|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
-            H.tx Nothing $ do
-              H.single $ [H.q|SELECT name, birthday FROM a WHERE id = ? |] (1 :: Int)
+                H.unitTx $ [H.q|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
+            tx Nothing $ do
+              H.maybeTx $ [H.q|SELECT name, birthday FROM a WHERE id = ? |] (1 :: Int)
 
       it "countEffects" $ do
-        (flip shouldBe) 100 =<< do 
+        (flip shouldBe) (Right 100) =<< do 
           session1 $ do
             tx Nothing $ do
-              unit [q|DROP TABLE IF EXISTS a|]
-              unit [q|CREATE TABLE a (id SERIAL NOT NULL, name VARCHAR NOT NULL)|]
+              H.unitTx [H.q|DROP TABLE IF EXISTS a|]
+              H.unitTx [H.q|CREATE TABLE a (id SERIAL NOT NULL, name VARCHAR NOT NULL)|]
               replicateM_ 100 $ do
-                unit [q|INSERT INTO a (name) VALUES ('a')|]
-              count [q|DELETE FROM a|]
+                H.unitTx [H.q|INSERT INTO a (name) VALUES ('a')|]
+              H.countTx [H.q|DELETE FROM a|]
 
       it "autoIncrement" $ do
-        (flip shouldBe) (Just (1 :: Word64), Just (2 :: Word64)) =<< do
+        (flip shouldBe) (Right (Just (1 :: Word64), Just (2 :: Word64))) =<< do
           session1 $ tx Nothing $ do
-            unit [q|DROP TABLE IF EXISTS a|]
-            unit [q|CREATE TABLE a (id SERIAL NOT NULL, v INT8, PRIMARY KEY (id))|]
-            id1 <- (fmap . fmap) runIdentity $ single $ [q|INSERT INTO a (v) VALUES (1) RETURNING id|]
-            id2 <- (fmap . fmap) runIdentity $ single $ [q|INSERT INTO a (v) VALUES (2) RETURNING id|]
+            H.unitTx [H.q|DROP TABLE IF EXISTS a|]
+            H.unitTx [H.q|CREATE TABLE a (id SERIAL NOT NULL, v INT8, PRIMARY KEY (id))|]
+            id1 <- (fmap . fmap) runIdentity $ H.maybeTx $ [H.q|INSERT INTO a (v) VALUES (1) RETURNING id|]
+            id2 <- (fmap . fmap) runIdentity $ H.maybeTx $ [H.q|INSERT INTO a (v) VALUES (2) RETURNING id|]
             return (id1, id2)
 
       it "cursorResultsOrder" $ do
-        session1 $ do
-          r :: [Word] <-
-            tx (Just (ReadCommitted, False)) $ do
-              ListT.toList $ fmap runIdentity $ stream $ 
-                [q|select oid from pg_type ORDER BY oid|]
-          liftIO $ (flip shouldBe) (sort r) r
+        Right r <-
+          session1 $ do
+            tx (Just (H.ReadCommitted, Nothing)) $ do
+              ListT.toList . fmap runIdentity =<< do 
+                H.streamTx $ [H.q|select oid from pg_type ORDER BY oid|]
+        (flip shouldBe) (sort r :: [Word]) r
 
       it "cursor" $ do
-        session1 $ do
-          r :: [(Word, Text)] <-
-            tx (Just (ReadCommitted, False)) $ do
-              ListT.toList $ stream $
-                [q|select oid, typname from pg_type|]
-          r' :: [(Word, Text)] <-
-            tx (Just (ReadCommitted, False)) $ do
-              list $ [q|select oid, typname from pg_type|]
-          liftIO $ (flip shouldBe) r' r
+        flip shouldSatisfy isRight =<< do
+          session1 $ do
+            r :: [(Word, Text)] <-
+              tx (Just (H.ReadCommitted, Nothing)) $ do
+                ListT.toList =<< do H.streamTx $ [H.q|select oid, typname from pg_type|]
+            r' :: [(Word, Text)] <-
+              tx (Just (H.ReadCommitted, Nothing)) $ do
+                fmap toList $ H.vectorTx $ [H.q|select oid, typname from pg_type|]
+            liftIO $ (flip shouldBe) r' r
 
       it "select" $ do
-        session1 $ do
-          r :: [(Word, Text)] <-
-            tx Nothing $ do
-              list $ [q|select oid, typname from pg_type|]
-          liftIO $ (flip shouldBe) True $ not $ null r
+        (flip shouldSatisfy) (either (const False) (not . null)) =<< do
+          session1 $ do
+            fmap toList $ tx Nothing $ H.vectorTx $ 
+              [H.q|select oid, typname from pg_type|] :: Session [(Word, Text)]
 
     describe "Mapping of" $ do
 
       describe "Enum" $ do
 
         it "casts text" $ do
-          session1 $ do
-            H.tx Nothing $ do
-              H.unit [H.q| DROP TYPE IF EXISTS mood |]
-              H.unit [H.q| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
-            liftIO . (flip shouldBe) (Just (Identity ("ok" :: Text))) =<< do 
-              H.tx Nothing $ H.single $ [H.q|SELECT (? :: mood)|] ("ok" :: Text)
+          flip shouldSatisfy isRight =<< do
+            session1 $ do
+              tx Nothing $ do
+                H.unitTx [H.q| DROP TYPE IF EXISTS mood |]
+                H.unitTx [H.q| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
+              liftIO . (flip shouldBe) (Just (Identity ("ok" :: Text))) =<< do 
+                tx Nothing $ H.maybeTx $ [H.q|SELECT (? :: mood)|] ("ok" :: Text)
 
       describe "Unknown" $ do
 
         it "encodes to enum" $ do
-          session1 $ do
-            H.tx Nothing $ do
-              H.unit [H.q| DROP TABLE IF EXISTS a |]
-              H.unit [H.q| DROP TYPE IF EXISTS mood |]
-              H.unit [H.q| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
-              H.unit [H.q| CREATE TABLE a (id SERIAL NOT NULL, 
-                                           mood mood NOT NULL,
-                                           PRIMARY KEY (id)) |]
-              H.unit $ [H.q| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "ok")
-              H.unit $ [H.q| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "ok")
-              H.unit $ [H.q| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "happy")
-            liftIO . (flip shouldBe) ([1, 2] :: [Int]) . fmap runIdentity =<< do 
-              H.tx Nothing $ H.list $ [H.q|SELECT id FROM a WHERE mood = ?|] (HP.Unknown "ok")
+          flip shouldSatisfy isRight =<< do
+            session1 $ do
+              tx Nothing $ do
+                H.unitTx [H.q| DROP TABLE IF EXISTS a |]
+                H.unitTx [H.q| DROP TYPE IF EXISTS mood |]
+                H.unitTx [H.q| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
+                H.unitTx [H.q| CREATE TABLE a (id SERIAL NOT NULL, 
+                                             mood mood NOT NULL,
+                                             PRIMARY KEY (id)) |]
+                H.unitTx $ [H.q| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "ok")
+                H.unitTx $ [H.q| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "ok")
+                H.unitTx $ [H.q| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "happy")
+              liftIO . (flip shouldBe) ([1, 2] :: [Int]) . fmap runIdentity =<< do 
+                tx Nothing $ fmap toList $ H.vectorTx $ 
+                  [H.q|SELECT id FROM a WHERE mood = ?|] (HP.Unknown "ok")
 
         it "encodes Int64 into \"int8\" using a \"postgresql-binary\" encoder" $ do
-          session1 $ tx Nothing $ unit $
-            [q| SELECT (? :: int8) |] 
-              (HP.Unknown . PBE.int8 . Left $ 12345)
+          flip shouldSatisfy isRight =<< do
+            session1 $ tx Nothing $ H.unitTx $
+              [H.q| SELECT (? :: int8) |] 
+                (HP.Unknown . PBE.int8 . Left $ 12345)
 
         it "does not encode Int64 into \"int4\" using a \"postgresql-binary\" encoder" $ do
-          (flip shouldThrow) (\case H.ErroneousResult _ -> True; _ -> False) $
-            session1 $ tx Nothing $ unit $
-              [q| SELECT (? :: int4)|] 
+          flip shouldSatisfy (\case Left (H.BackendTxError _) -> True; _ -> False) =<< do
+            session1 $ tx Nothing $ H.unitTx $
+              [H.q| SELECT (? :: int4)|] 
                 (HP.Unknown . PBE.int8 . Left $ 12345)
 
         it "encodes Int64 into \"int8\" using a \"postgresql-binary\" encoder" $ do
-          session1 $ tx Nothing $ unit $
-            [q| SELECT (? :: int8) |] 
-              (HP.Unknown . PBE.int8 . Left $ 12345)
+          flip shouldSatisfy isRight =<< do
+            session1 $ tx Nothing $ H.unitTx $
+              [H.q| SELECT (? :: int8) |] 
+                (HP.Unknown . PBE.int8 . Left $ 12345)
 
         it "encodes Day into \"date\" using a \"postgresql-binary\" encoder" $ do
-          session1 $ tx Nothing $ unit $
-            [q| SELECT (? :: date) |] 
-              (HP.Unknown . PBE.date $ (read "1900-01-01" :: Day))
+          flip shouldSatisfy isRight =<< do
+            session1 $ tx Nothing $ H.unitTx $
+              [H.q| SELECT (? :: date) |] 
+                (HP.Unknown . PBE.date $ (read "1900-01-01" :: Day))
               
       describe "Maybe" $ do
         it "" $ do
-          session1 $ do
-            validMappingSession (Just '!')
-            validMappingSession (Nothing :: Maybe Bool)
+          flip shouldSatisfy isRight =<< do
+            session1 $ do
+              validMappingSession (Just '!')
+              validMappingSession (Nothing :: Maybe Bool)
       
       describe "List" $ do
 
@@ -176,21 +180,24 @@ main =
           let
             v1  = [v2, v2]
             v2  = [Just 'a', Nothing, Just 'b']
-          session1 $ do
-            validMappingSession v1
-            validMappingSession v2
+          flip shouldSatisfy isRight =<< do 
+            session1 $ do
+              validMappingSession v1
+              validMappingSession v2
 
         it "2" $ do
           let
             v1  = [v2, v2]
             v2  = [Just (1 :: Int), Just 2, Nothing]
-          session1 $ do
-            validMappingSession v1
-            validMappingSession v2
+          flip shouldSatisfy isRight =<< do
+            session1 $ do
+              validMappingSession v1
+              validMappingSession v2
 
         it "3" $ do
-          session1 $ do
-            validMappingSession [" 'a' \"b\" \\c\\ " :: Text]
+          flip shouldSatisfy isRight =<< do
+            session1 $ do
+              validMappingSession [" 'a' \"b\" \\c\\ " :: Text]
 
         it "4" $ do
           let
@@ -199,16 +206,17 @@ main =
                 [Just 'a', Just 'b'],
                 [Nothing, Just 'c']
               ]
-          (flip shouldBe) (Just (Identity v1)) =<< do
+          (flip shouldBe) (Right (Just (Identity v1))) =<< do
             session1 $ tx Nothing $ do
-              unit $ [q|DROP TABLE IF EXISTS a|]
-              unit $ [q|CREATE TABLE a ("v" char[][])|]
-              unit $ [q|INSERT INTO a (v) VALUES (?)|] v1
-              single $ [q|SELECT v FROM a|]
+              H.unitTx $ [H.q|DROP TABLE IF EXISTS a|]
+              H.unitTx $ [H.q|CREATE TABLE a ("v" char[][])|]
+              H.unitTx $ [H.q|INSERT INTO a (v) VALUES (?)|] v1
+              H.maybeTx $ [H.q|SELECT v FROM a|]
 
         it "5" $ do
-          session1 $ do
-            validMappingSession [" 'a' \"b\" \\c\\ ф" :: ByteString]
+          flip shouldSatisfy isRight =<< do
+            session1 $ do
+              validMappingSession [" 'a' \"b\" \\c\\ ф" :: ByteString]
 
         it "ByteString" $ property $ \(x :: [ByteString]) ->
           mappingProp x
@@ -249,22 +257,37 @@ microsDiffTimeGen = do
 -- ** Session
 -------------------------
 
-selectSelf :: 
-  Backend.Mapping Postgres a => 
-  a -> Session Postgres s IO (Maybe a)
-selectSelf v =
-  tx Nothing $ (fmap . fmap) runIdentity $ single $ [q| SELECT ? |] v
+type Session =
+  ReaderT (H.Pool HP.Postgres) (EitherT (H.TxError HP.Postgres) IO)
 
-session1 :: (forall s. Session Postgres s IO r) -> IO r
+tx :: H.TxMode -> (forall s. H.Tx HP.Postgres s a) -> Session a
+tx mode m =
+  ReaderT $ \p -> EitherT $ H.tx p mode m
+
+selectSelf :: 
+  Backend.CxValue HP.Postgres a => 
+  a -> Session (Maybe a)
+selectSelf v =
+  tx Nothing $ (fmap . fmap) runIdentity $ H.maybeTx $ [H.q| SELECT ? |] v
+
+session1 :: Session r -> IO (Either (H.TxError HP.Postgres) r)
 session1 =
   session backendSettings poolSettings
   where
     backendSettings = HP.ParamSettings "localhost" 5432 "postgres" "" "postgres"
-    poolSettings = fromJust $ sessionSettings 6 30
+    poolSettings = fromJust $ H.poolSettings 6 30
+
+session :: HP.Settings -> H.PoolSettings -> Session r -> IO (Either (H.TxError HP.Postgres) r)
+session s1 s2 m =
+  do
+    p <- H.acquirePool s1 s2
+    r <- runEitherT $ runReaderT m p
+    H.releasePool p
+    return r
 
 validMappingSession :: 
-  Backend.Mapping Postgres a => Typeable a => Show a => Eq a => 
-  a -> Session Postgres s IO ()
+  Backend.CxValue HP.Postgres a => Typeable a => Show a => Eq a => 
+  a -> Session ()
 validMappingSession v =
   selectSelf v >>= liftIO . (flip shouldBe) (Just v)
 
@@ -278,8 +301,6 @@ floatEqProp a b =
   where
     error = max (abs a) 1 / 100
 
-mappingProp :: (Show a, Eq a, Backend.Mapping Postgres a) => a -> Property
+mappingProp :: (Show a, Eq a, Backend.CxValue HP.Postgres a) => a -> Property
 mappingProp v =
-  Right v === do 
-    unsafePerformIO $ (try :: IO a -> IO (Either H.Error a)) $ fmap fromJust $ 
-      session1 $ selectSelf v
+  Right (Just v) === do unsafePerformIO $ session1 $ selectSelf v

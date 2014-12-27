@@ -4,7 +4,6 @@ import Hasql.Postgres.Prelude
 import qualified Data.HashTable.IO as Hashtables
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Hasql.Postgres.Statement as Statement
-import qualified Hasql.Postgres.TemplateConverter as TemplateConverter
 import qualified Hasql.Postgres.Session.ResultProcessing as ResultProcessing
 
 
@@ -22,14 +21,14 @@ newEnv c =
 -- |
 -- Local statement key.
 data LocalKey =
-  LocalKey !ByteString ![Word32]
+  LocalKey !Statement.Template ![Word32]
   deriving (Show, Eq)
 
 instance Hashable LocalKey where
   hashWithSalt salt (LocalKey template types) =
     hashWithSalt salt template
 
-localKey :: ByteString -> [PQ.Oid] -> LocalKey
+localKey :: Statement.Template -> [PQ.Oid] -> LocalKey
 localKey t ol =
   LocalKey t (map oidMapper ol)
   where
@@ -42,32 +41,22 @@ type RemoteKey =
   ByteString
 
 
-data Error =
-  UnexpectedResult Text |
-  ErroneousResult Text |
-  UnparsableTemplate ByteString Text |
-  TransactionConflict
-
-
 -- * Monad
 -------------------------
 
 newtype M r =
-  M (ReaderT Env (EitherT Error IO) r)
+  M (ReaderT Env (EitherT ResultProcessing.Error IO) r)
   deriving (Functor, Applicative, Monad, MonadIO)
 
-run :: Env -> M r -> IO (Either Error r)
+run :: Env -> M r -> IO (Either ResultProcessing.Error r)
 run e (M m) =
   runEitherT $ runReaderT m e
 
-throwError :: Error -> M a
-throwError = M . lift . left
-
-prepare :: ByteString -> [PQ.Oid] -> M RemoteKey
-prepare s tl =
+prepare :: Statement.Template -> ByteString -> [PQ.Oid] -> M RemoteKey
+prepare k s tl =
   do
     (c, counter, table) <- M $ ask
-    let lk = localKey s tl
+    let lk = localKey k tl
     rk <- liftIO $ Hashtables.lookup table lk
     ($ rk) $ ($ return) $ maybe $ do
       w <- liftIO $ readIORef counter
@@ -81,14 +70,12 @@ statement :: Statement.Statement -> M (Maybe PQ.Result)
 statement s =
   do
     (c, _, _) <- M $ ask
-    let (template, params, preparable) = s
-    convertedTemplate <-
-      either (throwError . UnparsableTemplate template) return $ 
-      TemplateConverter.convert template
+    let (Statement.Statement template params preparable) = s
+    let convertedTemplate = Statement.preparedTemplate template
     case preparable of
       True -> do
         let (tl, vl) = unzip params
-        key <- prepare convertedTemplate tl
+        key <- prepare template convertedTemplate tl
         liftIO $ PQ.execPrepared c key vl PQ.Binary
       False -> do
         let params' = map (\(t, v) -> (\(vb, vf) -> (t, vb, vf)) <$> v) params
@@ -97,13 +84,7 @@ statement s =
 liftResultProcessing :: ResultProcessing.M a -> M a
 liftResultProcessing m =
   M $ ReaderT $ \(c, _, _) -> 
-    EitherT $ fmap (either (Left . mapError) Right) $ ResultProcessing.run c m
-  where
-    mapError =
-      \case
-        ResultProcessing.UnexpectedResult t   -> UnexpectedResult t
-        ResultProcessing.ErroneousResult t    -> ErroneousResult t
-        ResultProcessing.TransactionConflict  -> TransactionConflict
+    EitherT $ ResultProcessing.run c m
 
 {-# INLINE unitResult #-}
 unitResult :: Maybe PQ.Result -> M ()
