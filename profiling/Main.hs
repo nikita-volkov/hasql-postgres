@@ -17,16 +17,16 @@ main = do
       (,) <$> Q.generate Q.arbitrary <*> Q.generate Q.arbitrary
   H.session (H.PostgresParams host port user password db) (fromJust $ H.sessionSettings 1 30) $ do
     H.tx Nothing $ do
-      H.unit [H.q|DROP TABLE IF EXISTS a|]
-      H.unit [H.q|CREATE TABLE a (id SERIAL NOT NULL, 
-                                  name VARCHAR NOT NULL, 
-                                  birthday DATE, 
-                                  PRIMARY KEY (id))|]
+      H.unit [H.stmt|DROP TABLE IF EXISTS a|]
+      H.unit [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, 
+                                     name VARCHAR NOT NULL, 
+                                     birthday DATE, 
+                                     PRIMARY KEY (id))|]
       forM_ rows $ \(name, birthday) -> do
-        H.unit $ [H.q|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
+        H.unit $ [H.stmt|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
     replicateM_ 2000 $ do
       H.tx Nothing $ do
-        H.list $ [H.q|SELECT * FROM a|] :: H.Tx H.Postgres s [(Int, Text, Day)]
+        H.list $ [H.stmt|SELECT * FROM a|] :: H.Tx H.Postgres s [(Int, Text, Day)]
 
 
 host = "localhost"
