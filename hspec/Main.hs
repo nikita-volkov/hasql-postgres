@@ -1,8 +1,9 @@
 module Main where
 
-import BasePrelude hiding (assert)
+import BasePrelude hiding (assert, isRight, isLeft)
 import MTLPrelude
 import Control.Monad.Trans.Either
+import Data.Either.Combinators
 import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Instances
