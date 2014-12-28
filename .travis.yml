@@ -40,7 +40,6 @@ install:
     then
       constraint_options=(
         "--constraint=transformers==0.3.*"
-        "--constraint=mtl-prelude==1.*"
         "--constraint=bytestring==0.10.*"
         "--constraint=text==1.0.*"
         "--constraint=attoparsec==0.10.*"
@@ -48,9 +47,6 @@ install:
         "--constraint=hashtables==1.1.*"
         "--constraint=scientific==0.2.*"
         "--constraint=time==1.4.*"
-        "--constraint=list-t==0.2.*"
-        "--constraint=monad-control==0.3.*"
-        "--constraint=hasql==0.4.*"
       );
     fi;
   # Install the "haskell-src-exts" implicit dependency
