@@ -174,14 +174,6 @@ interpretTx =
       stmt' <- convertStatement stmt
       r <- liftExecution $ Execution.countResult =<< Execution.statement stmt'
       next $ r
-    Bknd.MaybeTx stmt next -> do
-      stmt' <- convertStatement stmt
-      r <- liftExecution $ Execution.vectorResult =<< Execution.statement stmt'
-      r' <- 
-        asks $ \p ->
-          (fmap . fmap) (ResultValue (mappingEnv p)) $
-          fmap Vector.head $ mfilter (not . Vector.null) $ pure $ r
-      next r'
     Bknd.VectorTx stmt next -> do
       stmt' <- convertStatement stmt
       r <- liftExecution $ Execution.vectorResult =<< Execution.statement stmt'
