@@ -41,7 +41,7 @@ main =
               session backendSettings poolSettings $ do
                 H.tx Nothing $ H.unitTx [H.stmt|DROP TABLE IF EXISTS a|]
             shouldSatisfy r $ \case
-              Left (H.BackendCxError _) -> True
+              Left (H.CxError _) -> True
               _ -> False
 
       it "sameStatementUsedOnDifferentTypes" $ do
@@ -149,7 +149,7 @@ main =
                 (HP.Unknown . PBE.int8 . Left $ 12345)
 
         it "does not encode Int64 into \"int4\" using a \"postgresql-binary\" encoder" $ do
-          flip shouldSatisfy (\case Left (H.BackendTxError _) -> True; _ -> False) =<< do
+          flip shouldSatisfy (\case Left (H.TxError _) -> True; _ -> False) =<< do
             session1 $ H.tx Nothing $ H.unitTx $
               [H.stmt| SELECT (? :: int4)|] 
                 (HP.Unknown . PBE.int8 . Left $ 12345)
@@ -265,14 +265,14 @@ selectSelf ::
 selectSelf v =
   H.tx Nothing $ (fmap . fmap) runIdentity $ H.maybeTx $ [H.stmt| SELECT ? |] v
 
-session1 :: Session r -> IO (Either (H.TxError HP.Postgres) r)
+session1 :: Session r -> IO (Either (H.SessionError HP.Postgres) r)
 session1 =
   session backendSettings poolSettings
   where
     backendSettings = HP.ParamSettings "localhost" 5432 "postgres" "" "postgres"
     poolSettings = fromJust $ H.poolSettings 6 30
 
-session :: HP.Settings -> H.PoolSettings -> Session r -> IO (Either (H.TxError HP.Postgres) r)
+session :: HP.Settings -> H.PoolSettings -> Session r -> IO (Either (H.SessionError HP.Postgres) r)
 session s1 s2 m =
   do
     p <- H.acquirePool s1 s2

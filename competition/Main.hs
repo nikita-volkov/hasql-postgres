@@ -252,7 +252,9 @@ main =
 -- * Hasql utils
 -------------------------
 
-hSession :: MonadBaseControl IO m => HP.Settings -> H.PoolSettings -> H.Session HP.Postgres m r -> m (Either (H.TxError HP.Postgres) r)
+hSession :: MonadBaseControl IO m => 
+            HP.Settings -> H.PoolSettings -> H.Session HP.Postgres m r -> 
+            m (Either (H.SessionError HP.Postgres) r)
 hSession s1 s2 m =
   control $ \unlift -> do
     p <- H.acquirePool s1 s2
