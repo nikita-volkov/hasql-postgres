@@ -5,6 +5,7 @@ import qualified Database.PostgreSQL.LibPQ as L
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy.Builder as BB
+import qualified Data.ByteString.Lazy.Builder.ASCII as BB
 import qualified Data.ByteString.Lazy as BL
 import qualified Hasql.Postgres.Statement.TemplateConverter as TC
 
@@ -75,12 +76,15 @@ closeCursor cursor =
     template =
       PreparedTemplate $ "CLOSE " <> cursor
 
-fetchFromCursor :: Cursor -> Statement
-fetchFromCursor cursor =
+fetchFromCursor :: Int -> Cursor -> Statement
+fetchFromCursor amount cursor =
   Statement template [] True
   where
     template =
-      PreparedTemplate $ "FETCH FORWARD 256 FROM " <> cursor
+      PreparedTemplate $ 
+      BL.toStrict $ BB.toLazyByteString $
+        BB.string7 "FETCH FORWARD " <> BB.intDec amount <> BB.string7 " FROM " <> 
+        BB.byteString cursor
 
 beginTransaction :: TransactionMode -> Statement
 beginTransaction (i, w) =

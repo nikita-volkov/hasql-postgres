@@ -40,7 +40,7 @@ main =
           in do
             r <- 
               session backendSettings poolSettings $ do
-                H.tx Nothing $ H.unitTx [H.stmt|DROP TABLE IF EXISTS a|]
+                H.tx Nothing $ H.unitEx [H.stmt|DROP TABLE IF EXISTS a|]
             shouldSatisfy r $ \case
               Left (H.CxError _) -> True
               _ -> False
@@ -49,42 +49,42 @@ main =
         flip shouldSatisfy isRight =<< do
           session1 $ do
             liftIO . (flip shouldBe) (Just (Identity ("abc" :: Text))) =<< do 
-              H.tx Nothing $ H.maybeTx $ [H.stmt|SELECT ?|] ("abc" :: Text)
+              H.tx Nothing $ H.maybeEx $ [H.stmt|SELECT ?|] ("abc" :: Text)
             liftIO . (flip shouldBe) (Just (Identity True)) =<< do 
-              H.tx Nothing $ H.maybeTx $ [H.stmt|SELECT ?|] True
+              H.tx Nothing $ H.maybeEx $ [H.stmt|SELECT ?|] True
 
       it "rendering" $ do
         let rows = [("A", 34525), ("B", 324987)] :: [(Text, Int)]
         (flip shouldBe) (Right $ Just $ head rows) =<< do 
           session1 $ do
             H.tx Nothing $ do
-              H.unitTx [H.stmt|DROP TABLE IF EXISTS a|]
-              H.unitTx [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, 
+              H.unitEx [H.stmt|DROP TABLE IF EXISTS a|]
+              H.unitEx [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, 
                                                name VARCHAR NOT NULL, 
                                                birthday INT8,
                                                PRIMARY KEY (id))|]
               forM_ rows $ \(name, birthday) -> do
-                H.unitTx $ [H.stmt|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
+                H.unitEx $ [H.stmt|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
             H.tx Nothing $ do
-              H.maybeTx $ [H.stmt|SELECT name, birthday FROM a WHERE id = ? |] (1 :: Int)
+              H.maybeEx $ [H.stmt|SELECT name, birthday FROM a WHERE id = ? |] (1 :: Int)
 
       it "countEffects" $ do
         (flip shouldBe) (Right 100) =<< do 
           session1 $ do
             H.tx Nothing $ do
-              H.unitTx [H.stmt|DROP TABLE IF EXISTS a|]
-              H.unitTx [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, name VARCHAR NOT NULL)|]
+              H.unitEx [H.stmt|DROP TABLE IF EXISTS a|]
+              H.unitEx [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, name VARCHAR NOT NULL)|]
               replicateM_ 100 $ do
-                H.unitTx [H.stmt|INSERT INTO a (name) VALUES ('a')|]
-              H.countTx [H.stmt|DELETE FROM a|]
+                H.unitEx [H.stmt|INSERT INTO a (name) VALUES ('a')|]
+              H.countEx [H.stmt|DELETE FROM a|]
 
       it "autoIncrement" $ do
         (flip shouldBe) (Right (Just (1 :: Word64), Just (2 :: Word64))) =<< do
           session1 $ H.tx Nothing $ do
-            H.unitTx [H.stmt|DROP TABLE IF EXISTS a|]
-            H.unitTx [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, v INT8, PRIMARY KEY (id))|]
-            id1 <- (fmap . fmap) runIdentity $ H.maybeTx $ [H.stmt|INSERT INTO a (v) VALUES (1) RETURNING id|]
-            id2 <- (fmap . fmap) runIdentity $ H.maybeTx $ [H.stmt|INSERT INTO a (v) VALUES (2) RETURNING id|]
+            H.unitEx [H.stmt|DROP TABLE IF EXISTS a|]
+            H.unitEx [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, v INT8, PRIMARY KEY (id))|]
+            id1 <- (fmap . fmap) runIdentity $ H.maybeEx $ [H.stmt|INSERT INTO a (v) VALUES (1) RETURNING id|]
+            id2 <- (fmap . fmap) runIdentity $ H.maybeEx $ [H.stmt|INSERT INTO a (v) VALUES (2) RETURNING id|]
             return (id1, id2)
 
       it "cursorResultsOrder" $ do
@@ -92,23 +92,23 @@ main =
           session1 $ do
             H.tx (Just (H.ReadCommitted, Nothing)) $ do
               ListT.toList . fmap runIdentity =<< do 
-                H.streamTx $ [H.stmt|select oid from pg_type ORDER BY oid|]
+                H.streamEx 256 $ [H.stmt|select oid from pg_type ORDER BY oid|]
 
       it "cursor" $ do
         flip shouldSatisfy isRight =<< do
           session1 $ do
             r :: [(Word, Text)] <-
               H.tx (Just (H.ReadCommitted, Nothing)) $ do
-                ListT.toList =<< do H.streamTx $ [H.stmt|select oid, typname from pg_type|]
+                ListT.toList =<< do H.streamEx 256 $ [H.stmt|select oid, typname from pg_type|]
             r' :: [(Word, Text)] <-
               H.tx (Just (H.ReadCommitted, Nothing)) $ do
-                fmap toList $ H.vectorTx $ [H.stmt|select oid, typname from pg_type|]
+                fmap toList $ H.vectorEx $ [H.stmt|select oid, typname from pg_type|]
             liftIO $ (flip shouldBe) r' r
 
       it "select" $ do
         (flip shouldSatisfy) (either (const False) (not . null)) =<< do
           session1 $ do
-            fmap toList $ H.tx Nothing $ H.vectorTx $ 
+            fmap toList $ H.tx Nothing $ H.vectorEx $ 
               [H.stmt|select oid, typname from pg_type|] :: Session [(Word, Text)]
 
     describe "Mapping of" $ do
@@ -119,10 +119,10 @@ main =
           flip shouldSatisfy isRight =<< do
             session1 $ do
               H.tx Nothing $ do
-                H.unitTx [H.stmt| DROP TYPE IF EXISTS mood |]
-                H.unitTx [H.stmt| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
+                H.unitEx [H.stmt| DROP TYPE IF EXISTS mood |]
+                H.unitEx [H.stmt| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
               liftIO . (flip shouldBe) (Just (Identity ("ok" :: Text))) =<< do 
-                H.tx Nothing $ H.maybeTx $ [H.stmt|SELECT (? :: mood)|] ("ok" :: Text)
+                H.tx Nothing $ H.maybeEx $ [H.stmt|SELECT (? :: mood)|] ("ok" :: Text)
 
       describe "Unknown" $ do
 
@@ -130,40 +130,40 @@ main =
           flip shouldSatisfy isRight =<< do
             session1 $ do
               H.tx Nothing $ do
-                H.unitTx [H.stmt| DROP TABLE IF EXISTS a |]
-                H.unitTx [H.stmt| DROP TYPE IF EXISTS mood |]
-                H.unitTx [H.stmt| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
-                H.unitTx [H.stmt| CREATE TABLE a (id SERIAL NOT NULL, 
+                H.unitEx [H.stmt| DROP TABLE IF EXISTS a |]
+                H.unitEx [H.stmt| DROP TYPE IF EXISTS mood |]
+                H.unitEx [H.stmt| CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy') |]
+                H.unitEx [H.stmt| CREATE TABLE a (id SERIAL NOT NULL, 
                                              mood mood NOT NULL,
                                              PRIMARY KEY (id)) |]
-                H.unitTx $ [H.stmt| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "ok")
-                H.unitTx $ [H.stmt| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "ok")
-                H.unitTx $ [H.stmt| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "happy")
+                H.unitEx $ [H.stmt| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "ok")
+                H.unitEx $ [H.stmt| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "ok")
+                H.unitEx $ [H.stmt| INSERT INTO a (mood) VALUES (?) |] (HP.Unknown "happy")
               liftIO . (flip shouldBe) ([1, 2] :: [Int]) . fmap runIdentity =<< do 
-                H.tx Nothing $ fmap toList $ H.vectorTx $ 
+                H.tx Nothing $ fmap toList $ H.vectorEx $ 
                   [H.stmt|SELECT id FROM a WHERE mood = ?|] (HP.Unknown "ok")
 
         it "encodes Int64 into \"int8\" using a \"postgresql-binary\" encoder" $ do
           flip shouldSatisfy isRight =<< do
-            session1 $ H.tx Nothing $ H.unitTx $
+            session1 $ H.tx Nothing $ H.unitEx $
               [H.stmt| SELECT (? :: int8) |] 
                 (HP.Unknown . PBE.int8 . Left $ 12345)
 
         it "does not encode Int64 into \"int4\" using a \"postgresql-binary\" encoder" $ do
           flip shouldSatisfy (\case Left (H.TxError _) -> True; _ -> False) =<< do
-            session1 $ H.tx Nothing $ H.unitTx $
+            session1 $ H.tx Nothing $ H.unitEx $
               [H.stmt| SELECT (? :: int4)|] 
                 (HP.Unknown . PBE.int8 . Left $ 12345)
 
         it "encodes Int64 into \"int8\" using a \"postgresql-binary\" encoder" $ do
           flip shouldSatisfy isRight =<< do
-            session1 $ H.tx Nothing $ H.unitTx $
+            session1 $ H.tx Nothing $ H.unitEx $
               [H.stmt| SELECT (? :: int8) |] 
                 (HP.Unknown . PBE.int8 . Left $ 12345)
 
         it "encodes Day into \"date\" using a \"postgresql-binary\" encoder" $ do
           flip shouldSatisfy isRight =<< do
-            session1 $ H.tx Nothing $ H.unitTx $
+            session1 $ H.tx Nothing $ H.unitEx $
               [H.stmt| SELECT (? :: date) |] 
                 (HP.Unknown . PBE.date $ (read "1900-01-01" :: Day))
               
@@ -208,10 +208,10 @@ main =
               ]
           (flip shouldBe) (Right (Just (Identity v1))) =<< do
             session1 $ H.tx Nothing $ do
-              H.unitTx $ [H.stmt|DROP TABLE IF EXISTS a|]
-              H.unitTx $ [H.stmt|CREATE TABLE a ("v" char[][])|]
-              H.unitTx $ [H.stmt|INSERT INTO a (v) VALUES (?)|] v1
-              H.maybeTx $ [H.stmt|SELECT v FROM a|]
+              H.unitEx $ [H.stmt|DROP TABLE IF EXISTS a|]
+              H.unitEx $ [H.stmt|CREATE TABLE a ("v" char[][])|]
+              H.unitEx $ [H.stmt|INSERT INTO a (v) VALUES (?)|] v1
+              H.maybeEx $ [H.stmt|SELECT v FROM a|]
 
         it "5" $ do
           flip shouldSatisfy isRight =<< do
@@ -264,7 +264,7 @@ selectSelf ::
   Backend.CxValue HP.Postgres a => 
   a -> Session (Maybe a)
 selectSelf v =
-  H.tx Nothing $ (fmap . fmap) runIdentity $ H.maybeTx $ [H.stmt| SELECT ? |] v
+  H.tx Nothing $ (fmap . fmap) runIdentity $ H.maybeEx $ [H.stmt| SELECT ? |] v
 
 session1 :: Session r -> IO (Either (H.SessionError HP.Postgres) r)
 session1 =

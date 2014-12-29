@@ -73,11 +73,11 @@ declareCursor s =
       Execution.statement (Statement.declareCursor name s)
     return name
 
-fetchFromCursor :: Statement.Cursor -> M (Vector (Vector (Maybe ByteString)))
-fetchFromCursor cursor =
+fetchFromCursor :: Int -> Statement.Cursor -> M (Vector (Vector (Maybe ByteString)))
+fetchFromCursor amount cursor =
   liftExecution $
     Execution.vectorResult =<< 
-    Execution.statement (Statement.fetchFromCursor cursor)
+    Execution.statement (Statement.fetchFromCursor amount cursor)
 
 beginTransaction :: Statement.TransactionMode -> M ()
 beginTransaction mode =
@@ -104,13 +104,13 @@ finishTransaction commit =
 type Stream =
   ListT M (Vector (Maybe ByteString))
 
-streamWithCursor :: Statement.Statement -> M Stream
-streamWithCursor statement =
+streamWithCursor :: Int -> Statement.Statement -> M Stream
+streamWithCursor batching statement =
   do
     cursor <- declareCursor statement
     return $ 
       let loop = do
-            chunk <- lift $ fetchFromCursor cursor
+            chunk <- lift $ fetchFromCursor batching cursor
             guard $ not $ Vector.null chunk
             Vector.foldl step mempty chunk <> loop
           step z r = z <> pure r

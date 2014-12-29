@@ -37,17 +37,17 @@ main =
         pause
         hSession (HP.ParamSettings host port user password db) (fromJust $ H.poolSettings 1 30) $ do
           H.tx Nothing $ do
-            H.unitTx [H.stmt|DROP TABLE IF EXISTS a|]
-            H.unitTx [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, 
+            H.unitEx [H.stmt|DROP TABLE IF EXISTS a|]
+            H.unitEx [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, 
                                              name VARCHAR NOT NULL, 
                                              birthday DATE,
                                              PRIMARY KEY (id))|]
             forM_ rows $ \(name, birthday) -> do
-              H.unitTx $ [H.stmt|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
+              H.unitEx $ [H.stmt|INSERT INTO a (name, birthday) VALUES (?, ?)|] name birthday
           lift $ continue
           replicateM_ 100 $ do
             r <- H.tx Nothing $ do
-              fmap toList $ H.vectorTx $ [H.stmt|SELECT * FROM a|] :: H.Tx HP.Postgres s [(Int, Text, Day)]
+              fmap toList $ H.vectorEx $ [H.stmt|SELECT * FROM a|] :: H.Tx HP.Postgres s [(Int, Text, Day)]
             deepseq r $ return ()
           lift $ pause
 
@@ -113,15 +113,15 @@ main =
         pause
         hSession (HP.ParamSettings host port user password db) (fromJust $ H.poolSettings 1 30) $ do
           H.tx Nothing $ do
-            H.unitTx [H.stmt|DROP TABLE IF EXISTS a|]
-            H.unitTx [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, 
+            H.unitEx [H.stmt|DROP TABLE IF EXISTS a|]
+            H.unitEx [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, 
                                              name VARCHAR NOT NULL, 
                                              birthday DATE,
                                              PRIMARY KEY (id))|]
           lift $ continue
           replicateM_ 1000 $ do
             H.tx Nothing $ do
-              fmap toList $ H.vectorTx $ 
+              fmap toList $ H.vectorEx $ 
                 [H.stmt|SELECT * FROM a WHERE id > ? AND id < ? AND birthday != ?|] 
                   (1000 :: Int)
                   (0 :: Int) 
@@ -186,20 +186,20 @@ main =
         pause
         hSession (HP.ParamSettings host port user password db) (fromJust $ H.poolSettings 1 30) $ do
           H.tx Nothing $ do
-            H.unitTx [H.stmt|DROP TABLE IF EXISTS a|]
-            H.unitTx [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, balance INT8, PRIMARY KEY (id))|]
+            H.unitEx [H.stmt|DROP TABLE IF EXISTS a|]
+            H.unitEx [H.stmt|CREATE TABLE a (id SERIAL NOT NULL, balance INT8, PRIMARY KEY (id))|]
             replicateM_ users $ do
-              H.unitTx [H.stmt|INSERT INTO a (balance) VALUES (0)|]
+              H.unitEx [H.stmt|INSERT INTO a (balance) VALUES (0)|]
           lift $ continue
           forM_ transfers $ \(id1, id2) -> do
             H.tx (Just (H.Serializable, Just True)) $ do
               runMaybeT $ do
                 do
-                  Identity balance <- MaybeT $ H.maybeTx $ [H.stmt|SELECT balance FROM a WHERE id=?|] id1
-                  lift $ H.unitTx $ [H.stmt|UPDATE a SET balance=? WHERE id=?|] (balance - amount) id1
+                  Identity balance <- MaybeT $ H.maybeEx $ [H.stmt|SELECT balance FROM a WHERE id=?|] id1
+                  lift $ H.unitEx $ [H.stmt|UPDATE a SET balance=? WHERE id=?|] (balance - amount) id1
                 do
-                  Identity balance <- MaybeT $ H.maybeTx $ [H.stmt|SELECT balance FROM a WHERE id=?|] id2
-                  lift $ H.unitTx $ [H.stmt|UPDATE a SET balance=? WHERE id=?|] (balance + amount) id2
+                  Identity balance <- MaybeT $ H.maybeEx $ [H.stmt|SELECT balance FROM a WHERE id=?|] id2
+                  lift $ H.unitEx $ [H.stmt|UPDATE a SET balance=? WHERE id=?|] (balance + amount) id2
           lift $ pause
 
       subject "postgresql-simple" $ do

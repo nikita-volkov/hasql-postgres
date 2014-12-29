@@ -181,9 +181,9 @@ interpretTx =
         asks $ \p -> 
           (fmap . fmap) (ResultValue (mappingEnv p)) $ r
       next r'
-    Bknd.StreamTx stmt next -> do
+    Bknd.StreamTx batching stmt next -> do
       stmt' <- convertStatement stmt
-      r <- liftTransaction $ Transaction.streamWithCursor stmt'
+      r <- liftTransaction $ Transaction.streamWithCursor batching stmt'
       r' <- 
         asks $ \p -> 
           (fmap . fmap) (ResultValue (mappingEnv p)) $
