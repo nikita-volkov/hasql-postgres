@@ -43,7 +43,6 @@ install:
         "--constraint=bytestring==0.10.*"
         "--constraint=text==1.0.*"
         "--constraint=attoparsec==0.10.*"
-        "--constraint=hashable==1.1.*"
         "--constraint=hashtables==1.1.*"
         "--constraint=scientific==0.2.*"
         "--constraint=time==1.4.*"
