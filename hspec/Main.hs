@@ -19,6 +19,7 @@ import qualified Hasql.Postgres as HP
 import qualified Data.Scientific as Scientific
 import qualified Data.Vector as Vector
 import qualified PostgreSQLBinary.Encoder as PBE
+import qualified Data.Aeson as J
 
 
 type Text = Data.Text.Text
@@ -112,6 +113,14 @@ main =
               [H.stmt|select oid, typname from pg_type|] :: Session [(Word, Text)]
 
     describe "Mapping of" $ do
+
+      describe "JSON" $ do
+
+        it "encodes and decodes" $ do
+          let v = (1, 'a') :: (Int, Char)
+              json = J.toJSON v
+              in flip shouldBe (Right (Identity json)) =<< do
+                   session1 $ H.tx Nothing $ H.singleEx [H.stmt| SELECT ($json :: json) |]
 
       describe "Enum" $ do
 
