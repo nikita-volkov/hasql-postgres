@@ -36,7 +36,7 @@ install:
     cd $pkg_name;
   # Install the lower bound dependencies
   - 
-    if [ $lower_bound_dependencies -eq 1 ];
+    if [ $lower_bound_dependencies = "1" ];
     then
       constraint_options=(
         "--constraint=transformers==0.3.*"
@@ -49,7 +49,7 @@ install:
   - cabal install --only-dependencies --reorder-goals
       ${constraint_options[@]}
       --enable-tests
-      $([ "$build_benchmarks" -eq 1 ] && echo "--enable-benchmarks")
+      $([ "$build_benchmarks" = "1" ] && echo "--enable-benchmarks")
   # Install the "haskell-src-exts" implicit dependency
   - cabal install happy
   # Build the library
@@ -65,7 +65,7 @@ install:
       wget https://ftp.postgresql.org/pub/source/v$postgres_version/postgresql-$postgres_version.tar.gz;
       tar xzvf postgresql-$postgres_version.tar.gz;
       cd "postgresql-$postgres_version";
-      if [ $postgres_integer_datetimes -eq 1 ];
+      if [ $postgres_integer_datetimes = "1" ];
       then
         sudo ./configure --enable-integer-datetimes --without-readline;
       else
