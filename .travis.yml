@@ -45,19 +45,15 @@ install:
         "--constraint=aeson==0.7.*"
       );
     fi;
-  # Install the "haskell-src-exts" implicit dependency
-  - cabal install -j ${constraint_options[@]} happy
   # Install the library dependencies
-  - cabal install -j ${constraint_options[@]} --only-dependencies
+  - cabal install --only-dependencies --reorder-goals
+      ${constraint_options[@]}
+      --enable-tests
+      $([ "$build_benchmarks" -eq 1 ] && echo "--enable-benchmarks")
+  # Install the "haskell-src-exts" implicit dependency
+  - cabal install happy
   # Build the library
   - cabal build
-  # Install the remaining dependencies
-  - if [ ${build_benchmarks:-0} -eq 1 ];
-    then
-      cabal install -j --only-dependencies --enable-tests --enable-benchmarks --force-reinstalls;
-    else
-      cabal install -j --only-dependencies --enable-tests --force-reinstalls;
-    fi;
   # Configure and build the remaining stuff
   - cabal configure --enable-tests && cabal build
   # Optionally install an arbitrary PostgreSQL version:
