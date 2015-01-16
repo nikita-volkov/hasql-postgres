@@ -1,7 +1,7 @@
 name:
   hasql-postgres
 version:
-  0.10.1
+  0.10.2
 synopsis:
   A "PostgreSQL" backend for the "hasql" library
 description:

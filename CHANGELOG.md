@@ -1,3 +1,9 @@
+# 0.10.2
+* JSON support
+
+# 0.10.1
+* Update the "backend" dependency
+
 # 0.10.0 - Major overhaul
 * Transactions now are only retried in case of the "serialization_failure" (40001) error
 
