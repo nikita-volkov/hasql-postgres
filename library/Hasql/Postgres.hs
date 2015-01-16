@@ -34,6 +34,7 @@ import qualified Hasql.Postgres.Session.ResultProcessing as ResultProcessing
 import qualified Language.Haskell.TH as TH
 import qualified Data.Text.Encoding as Text
 import qualified Data.Vector as Vector
+import qualified Data.Aeson as J
 import qualified ListT
 
 
@@ -480,6 +481,14 @@ instance Bknd.CxValue Postgres Bool where
 -- |
 -- Maps to @uuid@.
 instance Bknd.CxValue Postgres UUID where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
+
+-- |
+-- Maps to @json@.
+-- 
+-- Only works for PostgreSQL versions >= 9.2.
+instance Bknd.CxValue Postgres J.Value where
   encodeValue = encodeValueUsingMapping
   decodeValue = decodeValueUsingMapping
 

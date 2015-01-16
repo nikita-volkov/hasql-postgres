@@ -8,9 +8,11 @@ import qualified Hasql.Postgres.PTI as PTI
 import qualified Data.Vector as V
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text.Lazy as TL
+import qualified Data.Text as T
 import qualified PostgreSQLBinary.Array as Array
 import qualified PostgreSQLBinary.Encoder as Encoder
 import qualified PostgreSQLBinary.Decoder as Decoder
+import qualified Data.Aeson as J
 
 
 -- |
@@ -263,7 +265,14 @@ let
         [|PTI.uuid|]
         [|const $ Encoder.uuid|]
         [|const $ Decoder.uuid|]
+      ,
+      (,,,)
+        [t|J.Value|]
+        [|PTI.json|]
+        [|const $ Encoder.bytea . Right . J.encode|]
+        [|const $ (>>= either (Left . T.pack) Right . J.eitherDecodeStrict) . Decoder.bytea|]
     ]
+
   in
     fmap concat $ forM settings $ \(t, pti, encoder, decoder) ->
       [d|

@@ -40,12 +40,9 @@ install:
     then
       constraint_options=(
         "--constraint=transformers==0.3.*"
-        "--constraint=bytestring==0.10.*"
-        "--constraint=text==1.0.*"
-        "--constraint=attoparsec==0.10.*"
         "--constraint=hashtables==1.1.*"
-        "--constraint=scientific==0.2.*"
         "--constraint=time==1.4.*"
+        "--constraint=aeson==0.7.*"
       );
     fi;
   # Install the library dependencies
