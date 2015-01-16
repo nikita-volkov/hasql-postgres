@@ -486,6 +486,8 @@ instance Bknd.CxValue Postgres UUID where
 
 -- |
 -- Maps to @json@.
+-- 
+-- Only works for PostgreSQL versions >= 9.2.
 instance Bknd.CxValue Postgres J.Value where
   encodeValue = encodeValueUsingMapping
   decodeValue = decodeValueUsingMapping

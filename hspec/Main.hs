@@ -29,7 +29,11 @@ type LazyByteString = Data.ByteString.Lazy.ByteString
 type Scientific = Scientific.Scientific
 
 
-main = 
+main = do
+  version <-
+    fmap (fst . last . readP_to_S parseVersion . Data.Text.unpack) $
+    fmap (runIdentity . either (error . show) id) $
+    session1 $ H.tx Nothing $ H.singleEx [H.stmt| SHOW server_version |]
   hspec $ do
 
     describe "Feature" $ do
@@ -114,7 +118,7 @@ main =
 
     describe "Mapping of" $ do
 
-      describe "JSON" $ do
+      when (version >= Version [9,2] []) $ describe "JSON" $ do
 
         it "encodes and decodes" $ do
           let v = (1, 'a') :: (Int, Char)
