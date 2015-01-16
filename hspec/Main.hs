@@ -126,6 +126,14 @@ main = do
               in flip shouldBe (Right (Identity json)) =<< do
                    session1 $ H.tx Nothing $ H.singleEx [H.stmt| SELECT ($json :: json) |]
 
+      when (version >= Version [9,4] []) $ describe "JSONB" $ do
+
+        it "encodes and decodes" $ do
+          let v = (1, 'a') :: (Int, Char)
+              json = J.toJSON v
+              in flip shouldBe (Right (Identity json)) =<< do
+                   session1 $ H.tx Nothing $ H.singleEx [H.stmt| SELECT ($json :: jsonb) |]
+
       describe "Enum" $ do
 
         it "casts text" $ do
