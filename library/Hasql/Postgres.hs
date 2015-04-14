@@ -18,7 +18,7 @@ module Hasql.Postgres
   Connector.Settings(..),
   CxError(..),
   TxError(..),
-  Composite(..),
+  Row(..),
   ViaFields,
   Unknown(..),
 )
