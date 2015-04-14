@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 -- |
 -- This module contains everything required 
 -- to use \"hasql\" with Postgres.
@@ -17,6 +18,8 @@ module Hasql.Postgres
   Connector.Settings(..),
   CxError(..),
   TxError(..),
+  Composite(..),
+  ViaFields,
   Unknown(..),
 )
 where
@@ -31,12 +34,18 @@ import qualified Hasql.Postgres.Mapping as Mapping
 import qualified Hasql.Postgres.Session.Transaction as Transaction
 import qualified Hasql.Postgres.Session.Execution as Execution
 import qualified Hasql.Postgres.Session.ResultProcessing as ResultProcessing
+import qualified PostgreSQLBinary.Composite as Composite
+import qualified PostgreSQLBinary.Encoder as Encoder (composite)
+import qualified PostgreSQLBinary.Decoder as Decoder (composite)
 import qualified Language.Haskell.TH as TH
 import qualified Data.Text.Encoding as Text
 import qualified Data.Vector as Vector
+import qualified Data.Vector.Mutable as MVector
 import qualified Data.Aeson as J
 import qualified ListT
 
+import GHC.Generics
+import GHC.TypeLits
 
 -- |
 -- A connection to PostgreSQL.
@@ -491,8 +500,118 @@ instance Bknd.CxValue Postgres UUID where
 instance Bknd.CxValue Postgres J.Value where
   encodeValue = encodeValueUsingMapping
   decodeValue = decodeValueUsingMapping
+  
+-- ** Composite types
+-------------------------
 
+-- |
+-- Maps to
+-- <http://www.postgresql.org/docs/9.4/static/rowtypes.html composite types>
+newtype Composite a = Composite a
 
+instance ViaFields a => Bknd.CxValue Postgres (Composite a) where
+  encodeValue (Composite a) = StmtParam
+    (PTI.oidPQ (PTI.ptiOID PTI.record))
+    (\env -> Just $ Encoder.composite (toFields env a))
+
+  decodeValue (ResultValue env v) =
+    case v of
+      Just fs -> Composite <$> (fromFields env =<< Decoder.composite fs)
+      Nothing -> Left "decodeValue: NULL Composite"
+
+-- | Count the number of "fields" in a data type.
+type family Fields a where
+  -- this clause needs UndecidableInstances
+  Fields (f :*: g)  = Fields f + Fields g 
+  Fields (K1 i c)   = 1
+  Fields (M1 i c f) = Fields f
+
+class ViaFields a where
+  toFields   :: Mapping.Environment -> a -> Vector Composite.Field
+  fromFields :: Mapping.Environment -> Vector Composite.Field -> Either Text a
+
+  default toFields
+    :: (Generic a, GViaFields (Rep a), KnownNat (Fields (Rep a)))
+    => Mapping.Environment -> a -> Vector Composite.Field
+  toFields env (a :: a) = runST $ do
+    mvec <- MVector.new expFields
+    _offs <- gtoFields env 0 (from a) mvec
+    Vector.unsafeFreeze mvec
+   where
+    -- a mouthful, but it's imo better than computing statically known
+    -- information (the number of fields) at runtime
+    expFields = fromInteger (natVal (Proxy :: Proxy (Fields (Rep a))))
+
+  default fromFields
+    :: (Generic a, GViaFields (Rep a), KnownNat (Fields (Rep a)))
+    => Mapping.Environment -> Vector Composite.Field -> Either Text a
+  fromFields env v = 
+    if Vector.length v == expFields
+    then to . snd <$> gfromFields env v 0
+    else Left $ "fromFields: Vector has incorrect length" <>
+         fromString (show (Vector.length v, expFields))
+   where
+    expFields = fromInteger (natVal (Proxy :: Proxy (Fields (Rep a))))
+
+class GViaFields f where
+  gtoFields
+    :: Mapping.Environment
+    -> Int                                -- ^ Current position in fields vector
+    -> f a                                -- ^ The data
+    -> MVector.STVector s Composite.Field -- ^ Fields (set and unset)
+    -- | New position after encoding this data
+    -> ST s Int                           
+
+  gfromFields
+    :: Mapping.Environment
+    -> Vector Composite.Field -- ^ Fields
+    -> Int                    -- ^ Current position
+    -- | The new position after decoding this data, and the decoded data
+    -> Either Text (Int, f a)
+
+instance (GViaFields f, GViaFields g) => GViaFields (f :*: g) where
+  gtoFields env pos (a :*: b) mvec = do
+    pos' <- gtoFields env pos a mvec
+    gtoFields env pos' b mvec
+
+  gfromFields env v pos = do
+    (pos'  , left')  <- gfromFields env v pos
+    (pos'' , right') <- gfromFields env v pos'
+    return (pos'', left' :*: right')
+
+instance GViaFields f => GViaFields (M1 i c f) where
+  gtoFields env pos (M1 a) mvec = gtoFields env pos a mvec
+  gfromFields env v pos = second M1 <$> gfromFields env v pos
+
+instance forall i c. Mapping.Mapping c => GViaFields (K1 i c) where
+  gtoFields env pos (K1 p) mvec = do
+    MVector.unsafeWrite mvec pos $! Composite.createField
+      (PTI.oidWord32 (Mapping.oid p)) 
+      (Mapping.encode env p)
+    return (pos+1)
+
+  gfromFields env v pos =
+    let (oid, val) = case Vector.unsafeIndex v pos of
+          Composite.Field oid' _ bs -> (oid', Just bs)
+          Composite.NULL  oid'      -> (oid', Nothing)
+    in
+      if PTI.oidWord32 (Mapping.oid (undefined :: c)) == oid
+      then case Mapping.decode env val of
+        Right r -> Right (pos+1, K1 r)
+        Left e  -> Left e
+      else Left "fromFields: Type mismatch"
+
+-- Instances for ViaFields up to 7-tuples (beyond that apparently doesn't have
+-- Generic instances).
+forM [2..7::Int] (\n -> do
+  let name _ = "a"
+  names <- mapM (TH.newName . name) [1..n]
+  varsT <- mapM TH.varT names
+  let vars  = map return varsT
+      preds = map (TH.ClassP ''Mapping.Mapping . (:[])) varsT
+      tuple = foldl (TH.appT) (TH.tupleT n) vars
+  TH.instanceD (return preds) [t|ViaFields $tuple|] [])
+  
 -- ** Custom types
 -------------------------
 
