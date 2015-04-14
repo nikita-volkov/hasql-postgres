@@ -517,7 +517,7 @@ instance ViaFields a => Bknd.CxValue Postgres (Row a) where
   decodeValue (ResultValue env v) =
     case v of
       Just fs -> Row <$> (fromFields env =<< Decoder.composite fs)
-      Nothing -> Left "decodeValue: NULL Composite"
+      Nothing -> Left "decodeValue: NULL Row"
 
 -- | Count the number of "fields" in a data type.
 type family Fields a where
@@ -548,8 +548,10 @@ class ViaFields a where
   fromFields env v = 
     if Vector.length v == expFields
     then to . snd <$> gfromFields env v 0
-    else Left $ "fromFields: Vector has incorrect length" <>
-         fromString (show (Vector.length v, expFields))
+    else Left $
+      "fromFields: Vector has incorrect length;" <>
+      "expected " <> fromString (show expFields) <>
+      ", but got " <> fromString (show (Vector.length v))
    where
     expFields = fromInteger (natVal (Proxy :: Proxy (Fields (Rep a))))
 
