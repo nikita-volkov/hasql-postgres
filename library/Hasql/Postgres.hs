@@ -507,16 +507,16 @@ instance Bknd.CxValue Postgres J.Value where
 -- |
 -- Maps to
 -- <http://www.postgresql.org/docs/9.4/static/rowtypes.html composite types>
-newtype Composite a = Composite a
+newtype Row a = Row a
 
-instance ViaFields a => Bknd.CxValue Postgres (Composite a) where
-  encodeValue (Composite a) = StmtParam
+instance ViaFields a => Bknd.CxValue Postgres (Row a) where
+  encodeValue (Row a) = StmtParam
     (PTI.oidPQ (PTI.ptiOID PTI.record))
     (\env -> Just $ Encoder.composite (toFields env a))
 
   decodeValue (ResultValue env v) =
     case v of
-      Just fs -> Composite <$> (fromFields env =<< Decoder.composite fs)
+      Just fs -> Row <$> (fromFields env =<< Decoder.composite fs)
       Nothing -> Left "decodeValue: NULL Composite"
 
 -- | Count the number of "fields" in a data type.
