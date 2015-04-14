@@ -100,7 +100,8 @@ library
     loch-th == 0.2.*,
     placeholders == 0.1.*,
     -- general:
-    base-prelude >= 0.1.13 && < 0.2
+    base-prelude >= 0.1.13 && < 0.2,
+    base >= 4.6 && < 5
 
 
 test-suite doctest
