@@ -43,9 +43,9 @@ import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MVector
 import qualified Data.Aeson as J
 import qualified ListT
-
 import GHC.Generics
 import GHC.TypeLits
+import Data.Functor.Identity
 
 -- |
 -- A connection to PostgreSQL.
@@ -599,8 +599,34 @@ instance forall i c. Mapping.Mapping c => GViaFields (K1 i c) where
       then case Mapping.decode env val of
         Right r -> Right (pos+1, K1 r)
         Left e  -> Left e
-      else Left "fromFields: Type mismatch"
+      else Left $
+        "fromFields: Type mismatch: expected " <> fromString (show oid) <>
+        ", but got" <>
+        fromString (show (PTI.oidWord32 (Mapping.oid (undefined :: c))))
 
+-- | Empty row/composite type
+instance ViaFields () where
+  toFields   _ () = Vector.empty
+  fromFields _ v =
+    if Vector.length v == 0
+    then Right ()
+    else Left $ "Empty row had length " <> fromString (show (Vector.length v))
+
+-- | Singleton row/composite type
+instance Mapping.Mapping a => ViaFields (Identity a) where
+  toFields env (Identity a) = Vector.singleton $!
+    Composite.createField
+      (PTI.oidWord32 (Mapping.oid a))
+      (Mapping.encode env a)
+
+  fromFields env v = 
+    if Vector.length v == 1
+    then case gfromFields env v 0 of
+      Right (_, K1 a) -> Right (Identity a)
+      Left  err       -> Left err
+    else Left $
+      "Singleton row type had length " <> fromString (show (Vector.length v))
+    
 -- Instances for ViaFields up to 7-tuples (beyond that apparently doesn't have
 -- Generic instances).
 forM [2..7::Int] (\n -> do
