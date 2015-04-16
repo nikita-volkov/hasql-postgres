@@ -524,6 +524,27 @@ instance ViaFields a => Bknd.CxValue Postgres (Row a) where
       Just fs -> Row <$> (fromFields env =<< Decoder.composite fs)
       Nothing -> Left "decodeValue: NULL Row"
 
+-- | You cannot use 'Row' as an input (into queries), since unfortunately libpq
+-- does not support composite type input.
+instance ViaFields a => Mapping.Mapping (Row a) where
+  oid _ = PTI.ptiOID PTI.record
+  encode _env _row =
+    fail "Sorry! Cannot encode Row types yet; libpq doesn't support it."
+  decode env val = case val of
+    Nothing -> Left "NULL Row"
+    Just v  -> Row <$> (fromFields env =<< Decoder.composite v)
+
+-- | You cannot use 'Row' as an input (into queries), since unfortunately libpq
+-- does not support composite type input.
+instance ViaFields a => Mapping.ArrayMapping (Row a) where
+  arrayOID _ = PTI.ptiOID PTI.record
+  arrayEncode _env _row =
+    error "Cannot encode Row types yet; libpq doesn't support it."
+
+  arrayDecode env adata = case adata of
+    (_, [a], _, _) -> Mapping.decode env a
+    _              -> Left "arrayDecode @ Row type mismatch"
+
 -- | Count the number of "fields" in a data type.
 type family Fields a where
   -- this clause needs UndecidableInstances
