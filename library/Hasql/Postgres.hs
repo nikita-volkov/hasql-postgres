@@ -689,27 +689,16 @@ newtype Rows a = Rows (Vector (Row a))
 getRows :: Rows a -> Vector a
 getRows = coerce
 
-instance (Mapping.ArrayMapping a, ViaFields a) =>
-         Mapping.ArrayMapping (Rows a) where
-  arrayOID = const (Mapping.arrayOID (undefined :: a))
-  arrayEncode env (Rows r) = Mapping.arrayEncode env (Vector.toList r)
-  arrayDecode env =
-    fmap (Rows . Vector.fromList . catMaybes) . Mapping.arrayDecode env
-
-instance (Mapping.ArrayMapping a, ViaFields a) =>
-         Mapping.Mapping (Rows a) where
-  oid = Mapping.arrayOID
-  encode env (Rows v) = Just $! Encoder.array $! Mapping.arrayEncode env v
-  decode env x = case x of
-    Just a  -> Decoder.array a >>= Mapping.arrayDecode env
-    Nothing -> Left "NULL input"
-
 -- | See 'Rows'
-instance (Mapping.Mapping a, Mapping.ArrayMapping a, ViaFields a) =>
+instance (ViaFields a) =>
          Bknd.CxValue Postgres (Rows a) where
-  encodeValue = encodeValueUsingMapping
-  decodeValue = decodeValueUsingMapping
-  
+  encodeValue (Rows a) = Bknd.encodeValue a
+  decodeValue (ResultValue env mbs) = case mbs of
+    Just bs -> 
+      Rows . Vector.fromList . catMaybes <$>
+      (Mapping.arrayDecode env =<< Decoder.array bs)
+    Nothing ->
+      Left "NULL Rows array"
   
 -- ** Custom types
 -------------------------
