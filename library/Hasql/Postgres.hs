@@ -513,6 +513,7 @@ instance Bknd.CxValue Postgres J.Value where
 -- doesn't default the string to any type. A better query is
 -- @ SELECT row('asdf'::text) @.
 newtype Row a = Row a
+  deriving (Show,Read,Eq,Ord)
 
 instance ViaFields a => Bknd.CxValue Postgres (Row a) where
   encodeValue (Row a) = StmtParam
