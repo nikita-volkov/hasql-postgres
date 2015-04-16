@@ -507,6 +507,11 @@ instance Bknd.CxValue Postgres J.Value where
 -- |
 -- Maps to
 -- <http://www.postgresql.org/docs/9.4/static/rowtypes.html composite types>
+--
+-- It's easy to run into a type mismatch error if your types are not
+-- adequately constrained, for instance, in @ SELECT row('asdf') @, PostgreSQL
+-- doesn't default the string to any type. A better query is
+-- @ SELECT row('asdf'::text) @.
 newtype Row a = Row a
 
 instance ViaFields a => Bknd.CxValue Postgres (Row a) where
@@ -596,15 +601,20 @@ instance forall i c. Mapping.Mapping c => GViaFields (K1 i c) where
     let (oid, val) = case Vector.unsafeIndex v pos of
           Composite.Field oid' _ bs -> (oid', Just bs)
           Composite.NULL  oid'      -> (oid', Nothing)
+        aoid = PTI.oidWord32 (Mapping.oid (undefined :: c))
     in
-      if PTI.oidWord32 (Mapping.oid (undefined :: c)) == oid
+      if aoid == oid
       then case Mapping.decode env val of
         Right r -> Right (pos+1, K1 r)
         Left e  -> Left e
       else Left $
         "fromFields: Type mismatch: expected " <> fromString (show oid) <>
-        ", but got" <>
+        ", but got " <>
         fromString (show (PTI.oidWord32 (Mapping.oid (undefined :: c))))
+        <>
+        if aoid == PTI.oidWord32 (PTI.ptiOID PTI.unknown)
+        then ". You may need to add a type cast."
+        else "."
 
 -- | Empty row/composite type
 instance ViaFields () where
