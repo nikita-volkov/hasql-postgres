@@ -78,7 +78,7 @@ library
     attoparsec >= 0.10 && < 0.13,
     -- database:
     hasql-backend == 0.4.*,
-    postgresql-binary == 0.5.*,
+    postgresql-binary == 0.6.*,
     postgresql-libpq == 0.9.*,
     -- data:
     aeson >= 0.7 && < 0.9,
