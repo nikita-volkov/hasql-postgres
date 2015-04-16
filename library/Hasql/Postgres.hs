@@ -19,6 +19,8 @@ module Hasql.Postgres
   CxError(..),
   TxError(..),
   Row(..),
+  Rows(..),
+  getRows,
   ViaFields,
   Unknown(..),
 )
@@ -35,8 +37,8 @@ import qualified Hasql.Postgres.Session.Transaction as Transaction
 import qualified Hasql.Postgres.Session.Execution as Execution
 import qualified Hasql.Postgres.Session.ResultProcessing as ResultProcessing
 import qualified PostgreSQLBinary.Composite as Composite
-import qualified PostgreSQLBinary.Encoder as Encoder (composite)
-import qualified PostgreSQLBinary.Decoder as Decoder (composite)
+import qualified PostgreSQLBinary.Encoder as Encoder (composite, array)
+import qualified PostgreSQLBinary.Decoder as Decoder (composite, array)
 import qualified Language.Haskell.TH as TH
 import qualified Data.Text.Encoding as Text
 import qualified Data.Vector as Vector
@@ -46,6 +48,7 @@ import qualified ListT
 import GHC.Generics
 import GHC.TypeLits
 import Data.Functor.Identity
+import Data.Coerce
 
 -- |
 -- A connection to PostgreSQL.
@@ -671,6 +674,43 @@ forM [2..7::Int] (\n -> do
       preds = map (TH.ClassP ''Mapping.Mapping . (:[])) varsT
       tuple = foldl (TH.appT) (TH.tupleT n) vars
   TH.instanceD (return preds) [t|ViaFields $tuple|] [])
+
+-- |
+-- Maps to an aggregation of 'Row'.
+-- The difference between this and simply using @'Vector' 'Row'@, is that NULL
+-- rows inside an aggregation (such as that produced by @array_agg@ - note that
+-- @SELECT array_agg(*) FROM xyz@ returns {NULL} and not {} if xyz is empty) are
+-- explicitly ignored and not added to the vector.
+--
+-- If that behaviour is desired, use explicitly @'Vector' ('Maybe' ('Row' a)).@
+newtype Rows a = Rows (Vector (Row a))
+  deriving (Show,Read,Eq,Ord)
+
+-- | /O(1)/
+getRows :: Rows a -> Vector a
+getRows = coerce
+
+instance (Mapping.Mapping a, Mapping.ArrayMapping a, ViaFields a) =>
+         Mapping.ArrayMapping (Rows a) where
+  arrayOID = const (Mapping.arrayOID (undefined :: a))
+  arrayEncode env (Rows r) = Mapping.arrayEncode env (Vector.toList r)
+  arrayDecode env =
+    fmap (Rows . Vector.fromList . catMaybes) . Mapping.arrayDecode env
+
+instance (Mapping.Mapping a, Mapping.ArrayMapping a, ViaFields a) =>
+         Mapping.Mapping (Rows a) where
+  oid        = Mapping.arrayOID
+  encode env = Just . Encoder.array . Mapping.arrayEncode env . getRows
+  decode env x = case x of
+    Just a  -> Decoder.array a >>= Mapping.arrayDecode env
+    Nothing -> Left "NULL input"
+
+-- | See 'Rows'
+instance (Mapping.Mapping a, Mapping.ArrayMapping a, ViaFields a) =>
+         Bknd.CxValue Postgres (Rows a) where
+  encodeValue = encodeValueUsingMapping
+  decodeValue = decodeValueUsingMapping
+  
   
 -- ** Custom types
 -------------------------
