@@ -522,7 +522,6 @@ instance ViaFields a => Bknd.CxValue Postgres (Row a) where
   encodeValue (Row a) = StmtParam
     (PTI.oidPQ (PTI.ptiOID PTI.record))
     (\env -> Just $ Encoder.composite (toFields env a))
-
   decodeValue (ResultValue env v) =
     case v of
       Just fs -> Row <$> (fromFields env =<< Decoder.composite fs)
@@ -690,17 +689,17 @@ newtype Rows a = Rows (Vector (Row a))
 getRows :: Rows a -> Vector a
 getRows = coerce
 
-instance (Mapping.Mapping a, Mapping.ArrayMapping a, ViaFields a) =>
+instance (Mapping.ArrayMapping a, ViaFields a) =>
          Mapping.ArrayMapping (Rows a) where
   arrayOID = const (Mapping.arrayOID (undefined :: a))
   arrayEncode env (Rows r) = Mapping.arrayEncode env (Vector.toList r)
   arrayDecode env =
     fmap (Rows . Vector.fromList . catMaybes) . Mapping.arrayDecode env
 
-instance (Mapping.Mapping a, Mapping.ArrayMapping a, ViaFields a) =>
+instance (Mapping.ArrayMapping a, ViaFields a) =>
          Mapping.Mapping (Rows a) where
-  oid        = Mapping.arrayOID
-  encode env = Just . Encoder.array . Mapping.arrayEncode env . getRows
+  oid = Mapping.arrayOID
+  encode env (Rows v) = Just $! Encoder.array $! Mapping.arrayEncode env v
   decode env x = case x of
     Just a  -> Decoder.array a >>= Mapping.arrayDecode env
     Nothing -> Left "NULL input"
