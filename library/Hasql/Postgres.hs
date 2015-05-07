@@ -669,8 +669,8 @@ forM [2..7::Int] (\n -> do
   let name _ = "a"
   names <- mapM (TH.newName . name) [1..n]
   varsT <- mapM TH.varT names
+  preds <- mapM (TH.classP ''Mapping.Mapping . (:[]) . return) varsT
   let vars  = map return varsT
-      preds = map (TH.ClassP ''Mapping.Mapping . (:[])) varsT
       tuple = foldl (TH.appT) (TH.tupleT n) vars
   TH.instanceD (return preds) [t|ViaFields $tuple|] [])
 
