@@ -1,7 +1,7 @@
 name:
   hasql-postgres
 version:
-  0.10.3
+  0.11.0
 synopsis:
   A "PostgreSQL" backend for the "hasql" library
 description:
@@ -78,7 +78,7 @@ library
     attoparsec >= 0.10 && < 0.13,
     -- database:
     hasql-backend == 0.4.*,
-    postgresql-binary == 0.5.*,
+    postgresql-binary == 0.6.*,
     postgresql-libpq == 0.9.*,
     -- data:
     aeson >= 0.7 && < 0.9,
@@ -100,7 +100,8 @@ library
     loch-th == 0.2.*,
     placeholders == 0.1.*,
     -- general:
-    base-prelude >= 0.1.13 && < 0.2
+    base-prelude >= 0.1.13 && < 0.2,
+    base >= 4.6 && < 5
 
 
 test-suite doctest

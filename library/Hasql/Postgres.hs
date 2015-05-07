@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 -- |
 -- This module contains everything required 
 -- to use \"hasql\" with Postgres.
@@ -17,6 +18,10 @@ module Hasql.Postgres
   Connector.Settings(..),
   CxError(..),
   TxError(..),
+  Row(..),
+  Rows(..),
+  getRows,
+  ViaFields,
   Unknown(..),
 )
 where
@@ -31,12 +36,19 @@ import qualified Hasql.Postgres.Mapping as Mapping
 import qualified Hasql.Postgres.Session.Transaction as Transaction
 import qualified Hasql.Postgres.Session.Execution as Execution
 import qualified Hasql.Postgres.Session.ResultProcessing as ResultProcessing
+import qualified PostgreSQLBinary.Composite as Composite
+import qualified PostgreSQLBinary.Encoder as Encoder (composite, array)
+import qualified PostgreSQLBinary.Decoder as Decoder (composite, array)
 import qualified Language.Haskell.TH as TH
 import qualified Data.Text.Encoding as Text
 import qualified Data.Vector as Vector
+import qualified Data.Vector.Mutable as MVector
 import qualified Data.Aeson as J
 import qualified ListT
-
+import GHC.Generics
+import GHC.TypeLits
+import Data.Functor.Identity
+import Data.Coerce
 
 -- |
 -- A connection to PostgreSQL.
@@ -491,8 +503,203 @@ instance Bknd.CxValue Postgres UUID where
 instance Bknd.CxValue Postgres J.Value where
   encodeValue = encodeValueUsingMapping
   decodeValue = decodeValueUsingMapping
+  
+-- ** Composite types
+-------------------------
 
+-- |
+-- Maps to
+-- <http://www.postgresql.org/docs/9.4/static/rowtypes.html composite types>
+--
+-- It's easy to run into a type mismatch error if your types are not
+-- adequately constrained, for instance, in @ SELECT row('asdf') @, PostgreSQL
+-- doesn't default the string to any type. A better query is
+-- @ SELECT row('asdf'::text) @.
+newtype Row a = Row a
+  deriving (Show,Read,Eq,Ord)
 
+instance ViaFields a => Bknd.CxValue Postgres (Row a) where
+  encodeValue (Row a) = StmtParam
+    (PTI.oidPQ (PTI.ptiOID PTI.record))
+    (\env -> Just $ Encoder.composite (toFields env a))
+  decodeValue (ResultValue env v) =
+    case v of
+      Just fs -> Row <$> (fromFields env =<< Decoder.composite fs)
+      Nothing -> Left "decodeValue: NULL Row"
+
+-- | You cannot use 'Row' as an input (into queries), since unfortunately libpq
+-- does not support composite type input.
+instance ViaFields a => Mapping.Mapping (Row a) where
+  oid _ = PTI.ptiOID PTI.record
+  encode _env _row =
+    fail "Sorry! Cannot encode Row types yet; libpq doesn't support it."
+  decode env val = case val of
+    Nothing -> Left "NULL Row"
+    Just v  -> Row <$> (fromFields env =<< Decoder.composite v)
+
+-- | You cannot use 'Row' as an input (into queries), since unfortunately libpq
+-- does not support composite type input.
+instance ViaFields a => Mapping.ArrayMapping (Row a) where
+  arrayOID _ = PTI.ptiOID PTI.record
+  arrayEncode _env _row =
+    error "Cannot encode Row types yet; libpq doesn't support it."
+
+  arrayDecode env adata = case adata of
+    (_, [a], _, _) -> Mapping.decode env a
+    _              -> Left "arrayDecode @ Row type mismatch"
+
+-- | Count the number of "fields" in a data type.
+type family Fields a where
+  -- this clause needs UndecidableInstances
+  Fields (f :*: g)  = Fields f + Fields g 
+  Fields (K1 i c)   = 1
+  Fields (M1 i c f) = Fields f
+
+class ViaFields a where
+  toFields   :: Mapping.Environment -> a -> Vector Composite.Field
+  fromFields :: Mapping.Environment -> Vector Composite.Field -> Either Text a
+
+  default toFields
+    :: (Generic a, GViaFields (Rep a), KnownNat (Fields (Rep a)))
+    => Mapping.Environment -> a -> Vector Composite.Field
+  toFields env (a :: a) = runST $ do
+    mvec <- MVector.new expFields
+    _offs <- gtoFields env 0 (from a) mvec
+    Vector.unsafeFreeze mvec
+   where
+    -- a mouthful, but it's imo better than computing statically known
+    -- information (the number of fields) at runtime
+    expFields = fromInteger (natVal (Proxy :: Proxy (Fields (Rep a))))
+
+  default fromFields
+    :: (Generic a, GViaFields (Rep a), KnownNat (Fields (Rep a)))
+    => Mapping.Environment -> Vector Composite.Field -> Either Text a
+  fromFields env v = 
+    if Vector.length v == expFields
+    then to . snd <$> gfromFields env v 0
+    else Left $
+      "fromFields: Vector has incorrect length;" <>
+      "expected " <> fromString (show expFields) <>
+      ", but got " <> fromString (show (Vector.length v))
+   where
+    expFields = fromInteger (natVal (Proxy :: Proxy (Fields (Rep a))))
+
+class GViaFields f where
+  gtoFields
+    :: Mapping.Environment
+    -> Int                                -- ^ Current position in fields vector
+    -> f a                                -- ^ The data
+    -> MVector.STVector s Composite.Field -- ^ Fields (set and unset)
+    -- | New position after encoding this data
+    -> ST s Int                           
+
+  gfromFields
+    :: Mapping.Environment
+    -> Vector Composite.Field -- ^ Fields
+    -> Int                    -- ^ Current position
+    -- | The new position after decoding this data, and the decoded data
+    -> Either Text (Int, f a)
+
+instance (GViaFields f, GViaFields g) => GViaFields (f :*: g) where
+  gtoFields env pos (a :*: b) mvec = do
+    pos' <- gtoFields env pos a mvec
+    gtoFields env pos' b mvec
+
+  gfromFields env v pos = do
+    (pos'  , left')  <- gfromFields env v pos
+    (pos'' , right') <- gfromFields env v pos'
+    return (pos'', left' :*: right')
+
+instance GViaFields f => GViaFields (M1 i c f) where
+  gtoFields env pos (M1 a) mvec = gtoFields env pos a mvec
+  gfromFields env v pos = second M1 <$> gfromFields env v pos
+
+instance forall i c. Mapping.Mapping c => GViaFields (K1 i c) where
+  gtoFields env pos (K1 p) mvec = do
+    MVector.unsafeWrite mvec pos $! Composite.createField
+      (PTI.oidWord32 (Mapping.oid p)) 
+      (Mapping.encode env p)
+    return (pos+1)
+
+  gfromFields env v pos =
+    let (oid, val) = case Vector.unsafeIndex v pos of
+          Composite.Field oid' _ bs -> (oid', Just bs)
+          Composite.NULL  oid'      -> (oid', Nothing)
+        aoid = PTI.oidWord32 (Mapping.oid (undefined :: c))
+    in
+      if aoid == oid
+      then case Mapping.decode env val of
+        Right r -> Right (pos+1, K1 r)
+        Left e  -> Left e
+      else Left $
+        "fromFields: Type mismatch: expected " <> fromString (show oid) <>
+        ", but got " <>
+        fromString (show (PTI.oidWord32 (Mapping.oid (undefined :: c))))
+        <>
+        if aoid == PTI.oidWord32 (PTI.ptiOID PTI.unknown)
+        then ". You may need to add a type cast."
+        else "."
+
+-- | Empty row/composite type
+instance ViaFields () where
+  toFields   _ () = Vector.empty
+  fromFields _ v =
+    if Vector.length v == 0
+    then Right ()
+    else Left $ "Empty row had length " <> fromString (show (Vector.length v))
+
+-- | Singleton row/composite type
+instance Mapping.Mapping a => ViaFields (Identity a) where
+  toFields env (Identity a) = Vector.singleton $!
+    Composite.createField
+      (PTI.oidWord32 (Mapping.oid a))
+      (Mapping.encode env a)
+
+  fromFields env v = 
+    if Vector.length v == 1
+    then case gfromFields env v 0 of
+      Right (_, K1 a) -> Right (Identity a)
+      Left  err       -> Left err
+    else Left $
+      "Singleton row type had length " <> fromString (show (Vector.length v))
+    
+-- Instances for ViaFields up to 7-tuples (beyond that apparently doesn't have
+-- Generic instances).
+forM [2..7::Int] (\n -> do
+  let name _ = "a"
+  names <- mapM (TH.newName . name) [1..n]
+  varsT <- mapM TH.varT names
+  preds <- mapM (TH.classP ''Mapping.Mapping . (:[]) . return) varsT
+  let vars  = map return varsT
+      tuple = foldl (TH.appT) (TH.tupleT n) vars
+  TH.instanceD (return preds) [t|ViaFields $tuple|] [])
+
+-- |
+-- Maps to an aggregation of 'Row'.
+-- The difference between this and simply using @'Vector' 'Row'@, is that NULL
+-- rows inside an aggregation (such as that produced by @array_agg@ - note that
+-- @SELECT array_agg(*) FROM xyz@ returns {NULL} and not {} if xyz is empty) are
+-- explicitly ignored and not added to the vector.
+--
+-- If that behaviour is desired, use explicitly @'Vector' ('Maybe' ('Row' a)).@
+newtype Rows a = Rows (Vector (Row a))
+  deriving (Show,Read,Eq,Ord)
+
+-- | /O(1)/
+getRows :: Rows a -> Vector a
+getRows = coerce
+
+-- | See 'Rows'
+instance (ViaFields a) =>
+         Bknd.CxValue Postgres (Rows a) where
+  encodeValue (Rows a) = Bknd.encodeValue a
+  decodeValue (ResultValue env mbs) = case mbs of
+    Just bs -> 
+      Rows . Vector.fromList . catMaybes <$>
+      (Mapping.arrayDecode env =<< Decoder.array bs)
+    Nothing ->
+      Left "NULL Rows array"
+  
 -- ** Custom types
 -------------------------
 
