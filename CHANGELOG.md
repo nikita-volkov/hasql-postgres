@@ -1,3 +1,6 @@
+# 0.10.3.1
+* "attoparsec"-0.13 support
+
 # 0.10.3
 * GHC 7.10 support
 

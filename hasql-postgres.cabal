@@ -1,7 +1,7 @@
 name:
   hasql-postgres
 version:
-  0.10.3
+  0.10.3.1
 synopsis:
   A "PostgreSQL" backend for the "hasql" library
 description:
@@ -75,7 +75,7 @@ library
     -- template haskell:
     template-haskell == 2.*,
     -- parsers:
-    attoparsec >= 0.10 && < 0.13,
+    attoparsec >= 0.10 && < 0.14,
     -- database:
     hasql-backend == 0.4.*,
     postgresql-binary == 0.5.*,
