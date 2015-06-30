@@ -580,17 +580,22 @@ class ViaFields a where
   fromFields env v = 
     if Vector.length v == expFields
     then to . snd <$> gfromFields env v 0
-    else Left err
+    else Left (fromFieldsWrongLength expFields (Vector.length v))
    where
     -- Needs to be written NOINLINE so that it doesn't interfere with removing
     -- the Generics structure build up.
-    {-# NOINLINE err #-}
-    err :: Text.Text
-    err = Text.concat [ "fromFields: Vector has incorrect length;"
-                      , "expected ", Text.pack (show expFields), ", but got "
-                      , Text.pack (show (Vector.length v))
-                      ]
     expFields = fromInteger (natVal (Proxy :: Proxy (Fields (Rep a))))
+
+-- | This would be put in a 'where' clause above, except if we do that, GHC
+-- will actually generate (REALLY big) "specialised" versions of this code in
+-- modules that use gfromFields
+{-# NOINLINE fromFieldsWrongLength #-}
+fromFieldsWrongLength :: Int -> Int -> Text.Text
+fromFieldsWrongLength expLen actLen =
+  Text.concat [ "fromFields: Vector has incorrect length;"
+              , "expected ", Text.pack (show expLen), ", but got "
+              , Text.pack (show actLen)
+              ]
 
 class GViaFields f where
   gtoFields
@@ -651,16 +656,20 @@ instance forall i c. Mapping.Mapping c => GViaFields (K1 i c) where
           Right r -> Right (pos+1, K1 r)
           Left  e -> Left e
 
-      f -> Left (err f)
+      f -> Left (fromFieldsTypeMismatch aoid f)
    where
     aoid = PTI.oidWord32 (Mapping.oid (undefined :: c))
 
-    {-# NOINLINE err #-}
-    err f =
-      Text.concat [ "fromFields: Type mismatch: expected "
-                  , Text.pack (show (Composite.fieldOid f))
-                  , " but got ", Text.pack (show aoid)
-                  ]
+-- | This would be put in a 'where' clause above, except if we do that, GHC
+-- will actually generate (REALLY big) "specialised" versions of this code in
+-- modules that use gfromFields
+{-# NOINLINE fromFieldsTypeMismatch #-}
+fromFieldsTypeMismatch :: Word32 -> Composite.Field -> Text.Text
+fromFieldsTypeMismatch aoid' f =
+    Text.concat [ "fromFields: Type mismatch: expected "
+                , Text.pack (show (Composite.fieldOid f))
+                , " but got ", Text.pack (show aoid')
+                ]
 
 -- | Empty row/composite type
 instance ViaFields () where
