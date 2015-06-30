@@ -41,6 +41,7 @@ import qualified PostgreSQLBinary.Encoder as Encoder (composite, array)
 import qualified PostgreSQLBinary.Decoder as Decoder (composite, array)
 import qualified Language.Haskell.TH as TH
 import qualified Data.Text.Encoding as Text
+import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MVector
 import qualified Data.Aeson as J
@@ -562,6 +563,7 @@ class ViaFields a where
   default toFields
     :: (Generic a, GViaFields (Rep a), KnownNat (Fields (Rep a)))
     => Mapping.Environment -> a -> Vector Composite.Field
+  {-# INLINE toFields #-}
   toFields env (a :: a) = runST $ do
     mvec <- MVector.new expFields
     _offs <- gtoFields env 0 (from a) mvec
@@ -574,14 +576,20 @@ class ViaFields a where
   default fromFields
     :: (Generic a, GViaFields (Rep a), KnownNat (Fields (Rep a)))
     => Mapping.Environment -> Vector Composite.Field -> Either Text a
+  {-# INLINE fromFields #-}
   fromFields env v = 
     if Vector.length v == expFields
     then to . snd <$> gfromFields env v 0
-    else Left $
-      "fromFields: Vector has incorrect length;" <>
-      "expected " <> fromString (show expFields) <>
-      ", but got " <> fromString (show (Vector.length v))
+    else Left err
    where
+    -- Needs to be written NOINLINE so that it doesn't interfere with removing
+    -- the Generics structure build up.
+    {-# NOINLINE err #-}
+    err :: Text.Text
+    err = Text.concat [ "fromFields: Vector has incorrect length;"
+                      , "expected ", Text.pack (show expFields), ", but got "
+                      , Text.pack (show (Vector.length v))
+                      ]
     expFields = fromInteger (natVal (Proxy :: Proxy (Fields (Rep a))))
 
 class GViaFields f where
@@ -601,20 +609,30 @@ class GViaFields f where
     -> Either Text (Int, f a)
 
 instance (GViaFields f, GViaFields g) => GViaFields (f :*: g) where
+  {-# INLINE gtoFields #-}
+  {-# INLINE gfromFields #-}
   gtoFields env pos (a :*: b) mvec = do
     pos' <- gtoFields env pos a mvec
     gtoFields env pos' b mvec
 
   gfromFields env v pos = do
-    (pos'  , left')  <- gfromFields env v pos
-    (pos'' , right') <- gfromFields env v pos'
-    return (pos'', left' :*: right')
+    case gfromFields env v pos of
+      Right (pos', left') -> case gfromFields env v pos' of
+        Right (pos'', right'') -> Right (pos'', left' :*: right'')
+        Left e                 -> Left e
+      Left e -> Left e
 
 instance GViaFields f => GViaFields (M1 i c f) where
-  gtoFields env pos (M1 a) mvec = gtoFields env pos a mvec
-  gfromFields env v pos = second M1 <$> gfromFields env v pos
+  {-# INLINE gtoFields #-}
+  {-# INLINE gfromFields #-}
+  gtoFields env pos (M1 a) = gtoFields env pos a
+  gfromFields env v pos = case gfromFields env v pos of
+    Right (pos', a) -> Right (pos', M1 a)
+    Left          a -> Left a
 
 instance forall i c. Mapping.Mapping c => GViaFields (K1 i c) where
+  {-# INLINE gtoFields #-}
+  {-# INLINE gfromFields #-}
   gtoFields env pos (K1 p) mvec = do
     MVector.unsafeWrite mvec pos $! Composite.createField
       (PTI.oidWord32 (Mapping.oid p)) 
@@ -622,23 +640,27 @@ instance forall i c. Mapping.Mapping c => GViaFields (K1 i c) where
     return (pos+1)
 
   gfromFields env v pos =
-    let (oid, val) = case Vector.unsafeIndex v pos of
-          Composite.Field oid' _ bs -> (oid', Just bs)
-          Composite.NULL  oid'      -> (oid', Nothing)
-        aoid = PTI.oidWord32 (Mapping.oid (undefined :: c))
-    in
-      if aoid == oid
-      then case Mapping.decode env val of
-        Right r -> Right (pos+1, K1 r)
-        Left e  -> Left e
-      else Left $
-        "fromFields: Type mismatch: expected " <> fromString (show oid) <>
-        ", but got " <>
-        fromString (show (PTI.oidWord32 (Mapping.oid (undefined :: c))))
-        <>
-        if aoid == PTI.oidWord32 (PTI.ptiOID PTI.unknown)
-        then ". You may need to add a type cast."
-        else "."
+    case Vector.unsafeIndex v pos of
+      Composite.Field oid _ val | aoid == oid ->
+        case Mapping.decode env (Just val) of
+          Right r -> Right (pos+1, K1 r)
+          Left  e -> Left e
+
+      Composite.NULL oid | aoid == oid -> 
+        case Mapping.decode env Nothing of
+          Right r -> Right (pos+1, K1 r)
+          Left  e -> Left e
+
+      f -> Left (err f)
+   where
+    aoid = PTI.oidWord32 (Mapping.oid (undefined :: c))
+
+    {-# NOINLINE err #-}
+    err f =
+      Text.concat [ "fromFields: Type mismatch: expected "
+                  , Text.pack (show (Composite.fieldOid f))
+                  , " but got ", Text.pack (show aoid)
+                  ]
 
 -- | Empty row/composite type
 instance ViaFields () where
