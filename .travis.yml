@@ -91,6 +91,7 @@ script:
   - |
     if [ "$tests" = "1" ];
     then
+      cabal clean;
       cabal test --show-details=always ||
       { 
         echo "Test failed. Here's the Postgres' log:";
