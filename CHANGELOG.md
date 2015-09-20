@@ -1,3 +1,7 @@
+# 0.10.5.1
+* stack support
+* update dependencies
+
 # 0.10.3.1
 * "attoparsec"-0.13 support
 
